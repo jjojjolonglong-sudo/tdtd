@@ -75,32 +75,49 @@
         const editor = document.getElementById('editor');
         const charCountSpan = document.getElementById('char-count');
         
-        let supabase = null;
+        let appSupabase = null;
         let dirHandle = null;
         let isWideMargin = true;
 
         try {
-            if (!window.supabase) {
-                alert('Supabase CDN 스크립트가 로드되지 않았습니다!');
-            }
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            appSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             statusBox.innerText = '준비 완료';
         } catch (err) {
-            alert('초기화 에러: ' + err.message);
+            statusBox.innerText = '초기화 에러: ' + err.message;
         }
+
+        // 초기 세션 확인
+        async function checkUser() {
+            if (!appSupabase) return;
+            try {
+                const { data: { session } } = await appSupabase.auth.getSession();
+                if (session) {
+                    authScreen.classList.add('hidden');
+                    appScreen.classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error('세션 확인 에러:', err);
+            }
+        }
+        checkUser();
 
         // 로그인 처리
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!appSupabase) {
+                alert('Supabase가 초기화되지 않았습니다.');
+                return;
+            }
+
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value.trim();
 
             statusBox.innerText = '로그인 시도 중...';
 
             try {
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                const { data, error } = await appSupabase.auth.signInWithPassword({ email, password });
                 if (error) {
-                    alert('로그인 거부됨: ' + error.message);
+                    alert('로그인 실패: ' + error.message);
                     statusBox.innerText = error.message;
                 } else {
                     authScreen.classList.add('hidden');
@@ -108,16 +125,19 @@
                 }
             } catch (err) {
                 alert('예외 발생: ' + err.message);
+                statusBox.innerText = '통신 에러 발생';
             }
         });
 
-        // 기타 기능들
+        // 로그아웃
         document.getElementById('btn-logout').addEventListener('click', async () => {
-            if (supabase) await supabase.auth.signOut();
+            if (appSupabase) await appSupabase.auth.signOut();
             authScreen.classList.remove('hidden');
             appScreen.classList.add('hidden');
+            statusBox.innerText = '대기 중...';
         });
 
+        // 글자수 계산
         function updateCharCount() {
             const text = editor.innerText || '';
             charCountSpan.innerText = text.replace(/\s/g, '').length;
@@ -125,6 +145,7 @@
         editor.addEventListener('input', updateCharCount);
         updateCharCount();
 
+        // 여백 모드 토글
         const mainContainer = document.getElementById('main-container');
         const btnMargin = document.getElementById('btn-margin');
         btnMargin.addEventListener('click', () => {
@@ -138,6 +159,7 @@
             }
         });
 
+        // 로컬 폴더 지정
         document.getElementById('btn-folder').addEventListener('click', async () => {
             try {
                 dirHandle = await window.showDirectoryPicker();
@@ -147,6 +169,7 @@
             }
         });
 
+        // 파일 저장
         document.getElementById('btn-save').addEventListener('click', async () => {
             if (!dirHandle) {
                 alert('먼저 "저장 폴더 지정" 버튼을 눌러주세요.');
@@ -163,6 +186,7 @@
             }
         });
 
+        // 선택 영역 잠금
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
