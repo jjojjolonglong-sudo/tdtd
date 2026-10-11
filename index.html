@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>심플 집필 앱 (디버그 모드)</title>
+    <title>심플 집필 앱</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -26,15 +26,14 @@
     <!-- 1. 로그인 화면 -->
     <div id="auth-screen" class="fixed inset-0 bg-gray-50 flex items-center justify-center z-50">
         <div class="p-8 bg-white rounded-lg shadow-md w-96">
-            <h2 class="mb-6 text-xl font-bold text-center text-gray-800">로그인 (디버그)</h2>
+            <h2 class="mb-6 text-xl font-bold text-center text-gray-800">심플 집필 로그인</h2>
             <form id="login-form">
                 <input type="email" id="email" placeholder="이메일" class="w-full p-2 mb-4 border rounded outline-none focus:border-blue-500" required>
                 <input type="password" id="password" placeholder="비밀번호" class="w-full p-2 mb-4 border rounded outline-none focus:border-blue-500" required>
-                <button type="submit" class="w-full py-2 text-white bg-blue-600 rounded hover:bg-blue-700 mb-4">로그인 시도</button>
+                <button type="submit" class="w-full py-2 text-white bg-blue-600 rounded hover:bg-blue-700 mb-4">로그인</button>
             </form>
-            <!-- 화면에 직접 뜨는 상태/에러 메시지 창 -->
-            <div id="status-box" class="p-2 text-xs bg-gray-100 rounded text-gray-700 min-h-[40px] break-all">
-                상태: 대기 중...
+            <div id="status-box" class="p-2 text-xs bg-gray-100 rounded text-gray-600 min-h-[30px] text-center">
+                대기 중...
             </div>
         </div>
     </div>
@@ -66,94 +65,66 @@
     </div>
 
     <script>
-        // --- Supabase 설정 (본인 정보 정확히 입력되어 있는지 꼭 확인!) ---
         const SUPABASE_URL = 'https://rtvvajhsnwkkrmncyfbs.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0dnZhamhzbndra3JtbmN5ZmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NjkwMTEsImV4cCI6MjEwNzA0NTAxMX0.O2aLLeazv_FhUhbVAkp4vz3pw8GPb_683dUu7Et1Cwk';
-        
+
         const statusBox = document.getElementById('status-box');
-
-        function showStatus(msg, isError = false) {
-            statusBox.innerText = msg;
-            statusBox.style.color = isError ? 'red' : 'green';
-        }
-
-        // Supabase 라이브러리 로드 확인
-        if (!window.supabase) {
-            showStatus('에러: Supabase CDN 라이브러리가 로드되지 않았습니다.', true);
-        } else {
-            showStatus('Supabase 라이브러리 로드 완료. 로그인 대기 중.');
-        }
-
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
         const authScreen = document.getElementById('auth-screen');
         const appScreen = document.getElementById('app-screen');
         const loginForm = document.getElementById('login-form');
         const editor = document.getElementById('editor');
         const charCountSpan = document.getElementById('char-count');
         
+        let supabase = null;
         let dirHandle = null;
         let isWideMargin = true;
 
-        // 초기 세션 확인
-        async function checkUser() {
-            try {
-                const { data: { session }, error } = await supabase.auth.getSession();
-                if (error) {
-                    showStatus('세션 에러: ' + error.message, true);
-                    return;
-                }
-                if (session) {
-                    showStatus('자동 로그인 성공');
-                    authScreen.classList.add('hidden');
-                    appScreen.classList.remove('hidden');
-                }
-            } catch (err) {
-                showStatus('초기화 예외 발생: ' + err.message, true);
+        try {
+            if (!window.supabase) {
+                alert('Supabase CDN 스크립트가 로드되지 않았습니다!');
             }
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            statusBox.innerText = '준비 완료';
+        } catch (err) {
+            alert('초기화 에러: ' + err.message);
         }
-        checkUser();
 
         // 로그인 처리
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
 
-            showStatus('로그인 요청 전송 중...');
+            statusBox.innerText = '로그인 시도 중...';
 
             try {
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) {
-                    showStatus('로그인 실패: ' + error.message, true);
+                    alert('로그인 거부됨: ' + error.message);
+                    statusBox.innerText = error.message;
                 } else {
-                    showStatus('로그인 성공! 화면전환 중...');
                     authScreen.classList.add('hidden');
                     appScreen.classList.remove('hidden');
                 }
             } catch (err) {
-                showStatus('통신 중 치명적 에러: ' + err.message, true);
+                alert('예외 발생: ' + err.message);
             }
         });
 
-        // 로그아웃
+        // 기타 기능들
         document.getElementById('btn-logout').addEventListener('click', async () => {
-            await supabase.auth.signOut();
+            if (supabase) await supabase.auth.signOut();
             authScreen.classList.remove('hidden');
             appScreen.classList.add('hidden');
-            showStatus('로그아웃 되었습니다.');
         });
 
-        // 글자수
         function updateCharCount() {
             const text = editor.innerText || '';
-            const noSpaceText = text.replace(/\s/g, '');
-            charCountSpan.innerText = noSpaceText.length;
+            charCountSpan.innerText = text.replace(/\s/g, '').length;
         }
         editor.addEventListener('input', updateCharCount);
         updateCharCount();
 
-        // 여백 모드
         const mainContainer = document.getElementById('main-container');
         const btnMargin = document.getElementById('btn-margin');
         btnMargin.addEventListener('click', () => {
@@ -167,7 +138,6 @@
             }
         });
 
-        // 폴더 지정
         document.getElementById('btn-folder').addEventListener('click', async () => {
             try {
                 dirHandle = await window.showDirectoryPicker();
@@ -177,33 +147,28 @@
             }
         });
 
-        // 저장
         document.getElementById('btn-save').addEventListener('click', async () => {
             if (!dirHandle) {
                 alert('먼저 "저장 폴더 지정" 버튼을 눌러주세요.');
                 return;
             }
-            const fileName = document.getElementById('file-name').value;
             try {
-                const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                const fileHandle = await dirHandle.getFileHandle(document.getElementById('file-name').value, { create: true });
                 const writable = await fileHandle.createWritable();
                 await writable.write(editor.innerText);
                 await writable.close();
                 alert('저장되었습니다.');
             } catch (err) {
-                console.error(err);
-                alert('저장 실패');
+                alert('저장 실패: ' + err.message);
             }
         });
 
-        // 잠금
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
                 alert('잠글 영역을 드래그하여 선택해주세요.');
                 return;
             }
-
             const range = selection.getRangeAt(0);
             const span = document.createElement('span');
             span.className = 'locked-block';
