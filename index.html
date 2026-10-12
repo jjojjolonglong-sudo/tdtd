@@ -10,9 +10,9 @@
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        /* 잠긴 영역: 옅은 회색 음영 및 편집 차단 */
+        /* 잠긴 영역: 조금 더 어두운 회색 음영 및 편집 차단 */
         .locked-span {
-            background-color: #f3f4f6;
+            background-color: #d1d5db;
             padding: 0.1rem 0.2rem;
             border-radius: 0.2rem;
             user-select: text;
@@ -100,7 +100,6 @@
                 <button id="btn-margin" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">여백: 있음</button>
                 
                 <button id="btn-lock" class="px-2 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded font-medium">🔒 잠금</button>
-                <button id="btn-unlock" class="px-2 py-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded font-medium">🔓 잠금 해제</button>
                 
                 <button id="btn-logout" class="text-gray-500 hover:text-gray-800 ml-2">로그아웃</button>
             </div>
@@ -112,15 +111,15 @@
             </div>
         </main>
 
-        <footer class="fixed bottom-4 right-6 px-3 py-1 bg-gray-800 text-white text-xs rounded-full shadow-lg opacity-80 pointer-events-none select-none z-50">
+        <!-- 박스 없이 깔끔한 회색 글씨 글자수 표시 -->
+        <footer class="fixed bottom-3 right-6 text-gray-500 text-xs select-none z-50 pointer-events-none">
             공백 미포함 글자수: <span id="char-count">0</span>자
         </footer>
     </div>
 
     <script>
         const SUPABASE_URL = 'https://rtvvajhsnwkkrmncyfbs.supabase.co';
-        // 정상 복원된 정품 anon key[cite: 1]
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0dnZhamhzbndra3JtbmN5ZmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NjkwMTEsImV4cCI6MjEwNzA0NTAxMX0.O2aLLeazv_FhUhbVAkp4vz3pw8GPb_683dUu7Et1Cwk';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0dnZhamhzbndra3JtbmN5ZmJzIiwicm9sZSI6InJvbmUiLCJpYXQiOjE3OTE0NjkwMTEsImV4cCI6MjEwNzA0NTAxMX0.O2aLLeazv_FhUhbVAkp4vz3pw8GPb_683dUu7Et1Cwk';
 
         const statusBox = document.getElementById('status-box');
         const authScreen = document.getElementById('auth-screen');
@@ -138,6 +137,80 @@
         let isParaOn = false;
         let autoSaveTimer = null;
 
+        const SETTINGS_KEY = 'tdtd_app_settings';
+
+        function saveSettings() {
+            const settings = {
+                font: document.getElementById('select-font').value,
+                indent: isIndentOn,
+                leading: document.getElementById('select-leading').value,
+                para: isParaOn,
+                margin: isWideMargin
+            };
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem(SETTINGS_KEY);
+            if (!saved) return;
+            try {
+                const s = JSON.parse(saved);
+                if (s.font) {
+                    document.getElementById('select-font').value = s.font;
+                    editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
+                    editor.classList.add('font-' + s.font);
+                }
+                if (s.indent !== undefined) {
+                    isIndentOn = s.indent;
+                    const btnIndent = document.getElementById('btn-indent');
+                    if (isIndentOn) {
+                        editor.classList.add('indent-on');
+                        btnIndent.innerText = '들여쓰기: 켜짐';
+                        btnIndent.classList.add('bg-blue-100', 'text-blue-800');
+                    } else {
+                        editor.classList.remove('indent-on');
+                        btnIndent.innerText = '들여쓰기: 끔';
+                        btnIndent.classList.remove('bg-blue-100', 'text-blue-800');
+                    }
+                }
+                if (s.leading) {
+                    document.getElementById('select-leading').value = s.leading;
+                    editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
+                    editor.classList.add('leading-' + s.leading + '-custom');
+                }
+                if (s.para !== undefined) {
+                    isParaOn = s.para;
+                    const btnPara = document.getElementById('btn-para');
+                    if (isParaOn) {
+                        editor.classList.remove('para-spacing-off');
+                        editor.classList.add('para-spacing-on');
+                        btnPara.innerText = '문단간격: 있음';
+                        btnPara.classList.add('bg-blue-100', 'text-blue-800');
+                    } else {
+                        editor.classList.remove('para-spacing-on');
+                        editor.classList.add('para-spacing-off');
+                        btnPara.innerText = '문단간격: 없음';
+                        btnPara.classList.remove('bg-blue-100', 'text-blue-800');
+                    }
+                }
+                if (s.margin !== undefined) {
+                    isWideMargin = s.margin;
+                    const btnMargin = document.getElementById('btn-margin');
+                    if (isWideMargin) {
+                        contentWrapper.classList.add('max-w-3xl', 'px-6');
+                        contentWrapper.classList.remove('px-16');
+                        btnMargin.innerText = '여백: 있음';
+                    } else {
+                        contentWrapper.classList.remove('max-w-3xl', 'px-6');
+                        contentWrapper.classList.add('px-16', 'w-full');
+                        btnMargin.innerText = '여백: 없음';
+                    }
+                }
+            } catch (e) {
+                console.error('설정 불러오기 실패:', e);
+            }
+        }
+
         try {
             appSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             statusBox.innerText = '준비 완료';
@@ -148,6 +221,7 @@
         async function handleLoginSuccess() {
             authScreen.classList.add('hidden');
             appScreen.classList.remove('hidden');
+            loadSettings(); // 로그인 후 저장된 서식/설정 복원
             await loadDocument();
         }
 
@@ -295,13 +369,13 @@
 
         document.getElementById('btn-save').addEventListener('click', () => { executeSave(true); });
 
-        // 서식 옵션 제어
+        // 서식 옵션 제어 및 설정 저장
         document.getElementById('select-font').addEventListener('change', (e) => {
             editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
             editor.classList.add('font-' + e.target.value);
+            saveSettings();
         });
 
-        // 부분 정렬 옵션
         document.getElementById('select-align').addEventListener('change', (e) => {
             const align = e.target.value;
             let command = 'justifyLeft';
@@ -314,7 +388,6 @@
             executeSave(false);
         });
 
-        // 들여쓰기 토글
         const btnIndent = document.getElementById('btn-indent');
         btnIndent.addEventListener('click', () => {
             isIndentOn = !isIndentOn;
@@ -327,15 +400,15 @@
                 btnIndent.innerText = '들여쓰기: 끔';
                 btnIndent.classList.remove('bg-blue-100', 'text-blue-800');
             }
+            saveSettings();
         });
 
-        // 줄간격 변경
         document.getElementById('select-leading').addEventListener('change', (e) => {
             editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
             editor.classList.add('leading-' + e.target.value + '-custom');
+            saveSettings();
         });
 
-        // 문단 간격 토글
         const btnPara = document.getElementById('btn-para');
         btnPara.addEventListener('click', () => {
             isParaOn = !isParaOn;
@@ -350,9 +423,9 @@
                 btnPara.innerText = '문단간격: 없음';
                 btnPara.classList.remove('bg-blue-100', 'text-blue-800');
             }
+            saveSettings();
         });
 
-        // 여백 토글
         const btnMargin = document.getElementById('btn-margin');
         btnMargin.addEventListener('click', () => {
             isWideMargin = !isWideMargin;
@@ -365,9 +438,10 @@
                 contentWrapper.classList.add('px-16', 'w-full');
                 btnMargin.innerText = '여백: 없음';
             }
+            saveSettings();
         });
 
-        // 안전한 인라인 잠금 처리 (contenteditable="false" 적용)
+        // 잠금 처리 (contenteditable="false" 적용)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
@@ -387,46 +461,18 @@
             executeSave(false);
         });
 
-        // 잠금 해제 기능
-        document.getElementById('btn-unlock').addEventListener('click', () => {
-            const selection = window.getSelection();
-            let unlocked = false;
-
-            if (selection.rangeCount > 0) {
-                let node = selection.anchorNode;
-                if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-
-                const lockedSpan = node ? node.closest('.locked-span') : null;
-                if (lockedSpan) {
-                    const parent = lockedSpan.parentNode;
-                    while (lockedSpan.firstChild) {
-                        parent.insertBefore(lockedSpan.firstChild, lockedSpan);
-                    }
-                    parent.removeChild(lockedSpan);
-                    unlocked = true;
+        // 잠금 영역 우클릭 시 즉시 해제
+        editor.addEventListener('contextmenu', (e) => {
+            const lockedSpan = e.target.closest('.locked-span');
+            if (lockedSpan) {
+                e.preventDefault(); // 기본 우클릭 메뉴 차단
+                const parent = lockedSpan.parentNode;
+                while (lockedSpan.firstChild) {
+                    parent.insertBefore(lockedSpan.firstChild, lockedSpan);
                 }
-            }
-
-            if (!unlocked) {
-                const spans = editor.querySelectorAll('.locked-span');
-                spans.forEach(span => {
-                    if (selection.containsNode(span, true)) {
-                        const parent = span.parentNode;
-                        while (span.firstChild) {
-                            parent.insertBefore(span.firstChild, span);
-                        }
-                        parent.removeChild(span);
-                        unlocked = true;
-                    }
-                });
-            }
-
-            if (unlocked) {
-                alert('잠금이 해제되었습니다.');
+                parent.removeChild(lockedSpan);
                 updateCharCount();
                 executeSave(false);
-            } else {
-                alert('해제할 잠금 영역을 클릭하거나 선택한 후 눌러주세요.');
             }
         });
     </script>
