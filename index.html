@@ -26,6 +26,26 @@
             pointer-events: none;
             display: block;
         }
+        /* 폰트 스타일 클래스 */
+        .font-sans-system { font-family: system-ui, -apple-system, sans-serif; }
+        .font-gulim { font-family: 'Gulim', '굴림', sans-serif; }
+        .font-dodum { font-family: 'Dodum', '돋움', sans-serif; }
+        .font-batang { font-family: 'Batang', '바탕', serif; }
+
+        /* 들여쓰기 클래스 */
+        .indent-first-line p, .indent-first-line div {
+            text-indent: 2em;
+        }
+
+        /* 줄간격 클래스 */
+        .leading-tight-custom { line-height: 1.3; }
+        .leading-normal-custom { line-height: 1.6; }
+        .leading-loose-custom { line-height: 2.0; }
+
+        /* 문단 간격 클래스 */
+        .paragraph-spacing-sm p, .paragraph-spacing-sm div { margin-bottom: 0.25rem; }
+        .paragraph-spacing-md p, .paragraph-spacing-md div { margin-bottom: 1rem; }
+        .paragraph-spacing-lg p, .paragraph-spacing-lg div { margin-bottom: 1.5rem; }
     </style>
 </head>
 <body class="bg-white text-gray-900 h-screen flex flex-col m-0 overflow-hidden">
@@ -47,20 +67,49 @@
 
     <!-- 2. 메인 집필 화면 -->
     <div id="app-screen" class="hidden flex flex-col h-full">
-        <header class="flex items-center justify-between px-6 py-3 border-b border-gray-200 text-sm select-none">
-            <div class="flex items-center gap-4">
-                <input type="text" id="file-name" value="untitled.md" class="border-b border-transparent hover:border-gray-300 focus:border-blue-500 outline-none px-1 font-medium">
-                <button id="btn-save" class="px-3 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded">저장</button>
+        <header class="flex items-center justify-between px-6 py-3 border-b border-gray-200 text-xs select-none bg-gray-50 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+                <input type="text" id="file-name" value="untitled.md" class="border border-gray-300 rounded px-2 py-1 bg-white text-sm font-medium outline-none focus:border-blue-500 w-36">
+                <button id="btn-new" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-medium text-gray-700">+ 새 파일</button>
+                <button id="btn-save" class="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded font-medium">수동저장</button>
+                <span id="auto-save-status" class="text-gray-400 text-[11px] ml-1">자동저장 켜짐</span>
             </div>
-            <div class="flex items-center gap-4">
-                <button id="btn-margin" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded">여백: 있음</button>
-                <button id="btn-lock" class="px-3 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded font-medium">🔒 선택 영역 잠금</button>
-                <button id="btn-logout" class="text-gray-500 hover:text-gray-800">로그아웃</button>
+
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- 폰트 선택 -->
+                <select id="select-font" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
+                    <option value="system">기본 고딕</option>
+                    <option value="gulim">굴림체</option>
+                    <option value="dodum">돋움체</option>
+                    <option value="batang">바탕체</option>
+                </select>
+
+                <!-- 들여쓰기 토글 -->
+                <button id="btn-indent" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">들여쓰기: 끔</button>
+
+                <!-- 줄간격 선택 -->
+                <select id="select-leading" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
+                    <option value="normal">줄간격: 보통</option>
+                    <option value="tight">줄간격: 좁게</option>
+                    <option value="loose">줄간격: 넓게</option>
+                </select>
+
+                <!-- 문단 간격 선택 -->
+                <select id="select-paragraph" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
+                    <option value="md">문단간격: 기본</option>
+                    <option value="sm">문단간격: 좁게</option>
+                    <option value="lg">문단간격: 넓게</option>
+                </select>
+
+                <button id="btn-margin" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">여백: 있음</button>
+                <button id="btn-lock" class="px-2 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded font-medium">🔒 잠금</button>
+                <button id="btn-logout" class="text-gray-500 hover:text-gray-800 ml-2">로그아웃</button>
             </div>
         </header>
 
         <main id="main-container" class="flex-1 overflow-y-auto px-6 py-12 transition-all duration-300 max-w-3xl mx-auto w-full">
-            <div id="editor" contenteditable="true" class="outline-none min-h-full leading-relaxed" style="text-align: justify;"></div>
+            <!-- spellcheck="false" 로 맞춤법 빨간줄 원천 차단 -->
+            <div id="editor" contenteditable="true" spellcheck="false" class="outline-none min-h-full font-sans-system leading-normal-custom paragraph-spacing-md" style="text-align: justify;"></div>
         </main>
 
         <footer class="fixed bottom-4 right-6 px-3 py-1 bg-gray-800 text-white text-xs rounded-full shadow-lg opacity-80 pointer-events-none select-none">
@@ -78,9 +127,13 @@
         const loginForm = document.getElementById('login-form');
         const editor = document.getElementById('editor');
         const charCountSpan = document.getElementById('char-count');
+        const fileNameInput = document.getElementById('file-name');
+        const autoSaveStatus = document.getElementById('auto-save-status');
         
         let appSupabase = null;
         let isWideMargin = true;
+        let isIndentOn = false;
+        let autoSaveTimer = null;
 
         try {
             appSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -89,14 +142,12 @@
             statusBox.innerText = '초기화 에러: ' + err.message;
         }
 
-        // 로그인 성공 후 화면전환 및 문서 불러오기
         async function handleLoginSuccess() {
             authScreen.classList.add('hidden');
             appScreen.classList.remove('hidden');
             await loadDocument();
         }
 
-        // 초기 세션 확인
         async function checkUser() {
             if (!appSupabase) return;
             try {
@@ -110,7 +161,6 @@
         }
         checkUser();
 
-        // 로그인 처리
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!appSupabase) {
@@ -137,7 +187,6 @@
             }
         });
 
-        // 로그아웃
         document.getElementById('btn-logout').addEventListener('click', async () => {
             if (appSupabase) await appSupabase.auth.signOut();
             authScreen.classList.remove('hidden');
@@ -145,15 +194,14 @@
             statusBox.innerText = '대기 중...';
         });
 
-        // 문서 불러오기 (Supabase tdtd_manuscript 테이블 연동)
+        // 문서 불러오기
         async function loadDocument() {
             if (!appSupabase) return;
             try {
                 const { data: { session } } = await appSupabase.auth.getSession();
                 if (!session) return;
 
-                const titleInput = document.getElementById('file-name');
-                const title = titleInput.value.trim() || 'untitled.md';
+                const title = fileNameInput.value.trim() || 'untitled.md';
 
                 const { data, error } = await appSupabase
                     .from('tdtd_manuscript')
@@ -173,10 +221,18 @@
             }
         }
 
-        // 파일 이름이 바뀔 때 해당 문서 로드 시도
-        document.getElementById('file-name').addEventListener('change', loadDocument);
+        fileNameInput.addEventListener('change', loadDocument);
 
-        // 글자수 계산 (비어있을 경우 0자 처리)
+        // 새 파일 생성 버튼
+        document.getElementById('btn-new').addEventListener('click', () => {
+            const newName = prompt("새 파일의 이름을 입력하세요 (예: novel_ch1.md):", `file_${Date.now()}.md`);
+            if (!newName) return;
+            fileNameInput.value = newName.trim();
+            editor.innerHTML = '';
+            updateCharCount();
+        });
+
+        // 글자수 계산
         function updateCharCount() {
             const text = editor.innerText || '';
             const cleanText = text.trim();
@@ -186,10 +242,103 @@
             }
             charCountSpan.innerText = cleanText.replace(/\s/g, '').length;
         }
-        editor.addEventListener('input', updateCharCount);
-        updateCharCount();
 
-        // 여백 모드 토글
+        // 공통 저장 실행 함수 (자동/수동 공용)
+        async function executeSave(isManual = false) {
+            if (!appSupabase) return;
+            try {
+                const { data: { session } } = await appSupabase.auth.getSession();
+                if (!session) return;
+
+                const title = fileNameInput.value.trim() || 'untitled.md';
+                const content = editor.innerHTML;
+
+                const { data: existing } = await appSupabase
+                    .from('tdtd_manuscript')
+                    .select('id')
+                    .eq('user_id', session.user.id)
+                    .eq('title', title)
+                    .maybeSingle();
+
+                let error = null;
+                if (existing) {
+                    const res = await appSupabase
+                        .from('tdtd_manuscript')
+                        .update({ content })
+                        .eq('id', existing.id);
+                    error = res.error;
+                } else {
+                    const res = await appSupabase
+                        .from('tdtd_manuscript')
+                        .insert({ user_id: session.user.id, title, content });
+                    error = res.error;
+                }
+
+                if (error) {
+                    if (isManual) alert('저장 실패: ' + error.message);
+                    autoSaveStatus.innerText = '저장 실패';
+                } else {
+                    if (isManual) {
+                        alert('저장되었습니다.');
+                    }
+                    autoSaveStatus.innerText = '저장됨';
+                    setTimeout(() => { autoSaveStatus.innerText = '자동저장 켜짐'; }, 2000);
+                }
+            } catch (err) {
+                if (isManual) alert('저장 중 예외 발생: ' + err.message);
+            }
+        }
+
+        // 에디터 입력 시 1초 뒤 자동 저장 및 글자수 갱신
+        editor.addEventListener('input', () => {
+            updateCharCount();
+            autoSaveStatus.innerText = '저장 중...';
+            if (autoSaveTimer) clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                executeSave(false);
+            }, 1000);
+        });
+
+        // 수동 저장 버튼
+        document.getElementById('btn-save').addEventListener('click', () => {
+            executeSave(true);
+        });
+
+        // 서식 옵션 제어
+        // 1. 폰트 변경
+        document.getElementById('select-font').addEventListener('change', (e) => {
+            editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
+            editor.classList.add('font-' + e.target.value);
+        });
+
+        // 2. 들여쓰기 토글
+        const btnIndent = document.getElementById('btn-indent');
+        btnIndent.addEventListener('click', () => {
+            isIndentOn = !isIndentOn;
+            if (isIndentOn) {
+                editor.classList.add('indent-first-line');
+                btnIndent.innerText = '들여쓰기: 켜림';
+                btnIndent.classList.add('bg-blue-100', 'text-blue-800');
+            } else {
+                editor.classList.remove('indent-first-line');
+                btnIndent.innerText = '들여쓰기: 끔';
+                btnIndent.classList.remove('bg-blue-100', 'text-blue-800');
+            }
+        });
+
+        // 3. 줄간격 변경
+        document.getElementById('select-leading').addEventListener('change', (e) => {
+            editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
+            editor.classList.add('leading-' + e.target.value + '-custom');
+        });
+
+        // 4. 문단 간격 변경
+        document.getElementById('select-paragraph').addEventListener('change', (e) => {
+            editor.classList.remove('paragraph-spacing-sm', 'paragraph-spacing-md', 'paragraph-spacing-lg');
+            editor.classList.add('paragraph-spacing-' + e.target.value);
+        });
+
+        // 5. 여백 모드 토글
         const mainContainer = document.getElementById('main-container');
         const btnMargin = document.getElementById('btn-margin');
         btnMargin.addEventListener('click', () => {
@@ -200,56 +349,6 @@
             } else {
                 mainContainer.classList.remove('max-w-3xl', 'mx-auto');
                 btnMargin.innerText = '여백: 없음';
-            }
-        });
-
-        // Supabase에 파일 저장
-        document.getElementById('btn-save').addEventListener('click', async () => {
-            if (!appSupabase) {
-                alert('Supabase가 연결되지 않았습니다.');
-                return;
-            }
-            try {
-                const { data: { session } } = await appSupabase.auth.getSession();
-                if (!session) {
-                    alert('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
-                    return;
-                }
-
-                const title = document.getElementById('file-name').value.trim() || 'untitled.md';
-                const content = editor.innerHTML;
-
-                // 이미 해당 이름의 문서가 있는지 확인
-                const { data: existing } = await appSupabase
-                    .from('tdtd_manuscript')
-                    .select('id')
-                    .eq('user_id', session.user.id)
-                    .eq('title', title)
-                    .maybeSingle();
-
-                let error = null;
-                if (existing) {
-                    // 수정
-                    const res = await appSupabase
-                        .from('tdtd_manuscript')
-                        .update({ content })
-                        .eq('id', existing.id);
-                    error = res.error;
-                } else {
-                    // 새로 생성
-                    const res = await appSupabase
-                        .from('tdtd_manuscript')
-                        .insert({ user_id: session.user.id, title, content });
-                    error = res.error;
-                }
-
-                if (error) {
-                    alert('저장 실패: ' + error.message);
-                } else {
-                    alert('Supabase에 안전하게 저장되었습니다.');
-                }
-            } catch (err) {
-                alert('저장 중 예외 발생: ' + err.message);
             }
         });
 
@@ -269,6 +368,7 @@
             range.deleteContents();
             range.insertNode(span);
             updateCharCount();
+            executeSave(false);
         });
     </script>
 </body>
