@@ -119,7 +119,8 @@
 
     <script>
         const SUPABASE_URL = 'https://rtvvajhsnwkkrmncyfbs.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0dnZhamhzbndra3JtbmN5ZmJzIiwicm9sZSI6InJvbmUiLCJpYXQiOjE3OTE0NjkwMTEsImV4cCI6MjEwNzA0NTAxMX0.O2aLLeazv_FhUhbVAkp4vz3pw8GPb_683dUu7Et1Cwk';
+        // 정상 복원된 정품 anon key[cite: 1]
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0dnZhamhzbndra3JtbmN5ZmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NjkwMTEsImV4cCI6MjEwNzA0NTAxMX0.O2aLLeazv_FhUhbVAkp4vz3pw8GPb_683dUu7Et1Cwk';
 
         const statusBox = document.getElementById('status-box');
         const authScreen = document.getElementById('auth-screen');
@@ -280,3 +281,154 @@
                     autoSaveStatus.innerText = '저장됨';
                     setTimeout(() => { autoSaveStatus.innerText = '자동저장 켜짐'; }, 2000);
                 }
+            } catch (err) {
+                if (isManual) alert('저장 중 예외 발생: ' + err.message);
+            }
+        }
+
+        editor.addEventListener('input', () => {
+            updateCharCount();
+            autoSaveStatus.innerText = '저장 중...';
+            if (autoSaveTimer) clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => { executeSave(false); }, 1000);
+        });
+
+        document.getElementById('btn-save').addEventListener('click', () => { executeSave(true); });
+
+        // 서식 옵션 제어
+        document.getElementById('select-font').addEventListener('change', (e) => {
+            editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
+            editor.classList.add('font-' + e.target.value);
+        });
+
+        // 부분 정렬 옵션
+        document.getElementById('select-align').addEventListener('change', (e) => {
+            const align = e.target.value;
+            let command = 'justifyLeft';
+            if (align === 'center') command = 'justifyCenter';
+            else if (align === 'right') command = 'justifyRight';
+            else if (align === 'justify') command = 'justifyFull';
+            
+            document.execCommand(command, false, null);
+            editor.focus();
+            executeSave(false);
+        });
+
+        // 들여쓰기 토글
+        const btnIndent = document.getElementById('btn-indent');
+        btnIndent.addEventListener('click', () => {
+            isIndentOn = !isIndentOn;
+            if (isIndentOn) {
+                editor.classList.add('indent-on');
+                btnIndent.innerText = '들여쓰기: 켜짐';
+                btnIndent.classList.add('bg-blue-100', 'text-blue-800');
+            } else {
+                editor.classList.remove('indent-on');
+                btnIndent.innerText = '들여쓰기: 끔';
+                btnIndent.classList.remove('bg-blue-100', 'text-blue-800');
+            }
+        });
+
+        // 줄간격 변경
+        document.getElementById('select-leading').addEventListener('change', (e) => {
+            editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
+            editor.classList.add('leading-' + e.target.value + '-custom');
+        });
+
+        // 문단 간격 토글
+        const btnPara = document.getElementById('btn-para');
+        btnPara.addEventListener('click', () => {
+            isParaOn = !isParaOn;
+            if (isParaOn) {
+                editor.classList.remove('para-spacing-off');
+                editor.classList.add('para-spacing-on');
+                btnPara.innerText = '문단간격: 있음';
+                btnPara.classList.add('bg-blue-100', 'text-blue-800');
+            } else {
+                editor.classList.remove('para-spacing-on');
+                editor.classList.add('para-spacing-off');
+                btnPara.innerText = '문단간격: 없음';
+                btnPara.classList.remove('bg-blue-100', 'text-blue-800');
+            }
+        });
+
+        // 여백 토글
+        const btnMargin = document.getElementById('btn-margin');
+        btnMargin.addEventListener('click', () => {
+            isWideMargin = !isWideMargin;
+            if (isWideMargin) {
+                contentWrapper.classList.add('max-w-3xl', 'px-6');
+                contentWrapper.classList.remove('px-16');
+                btnMargin.innerText = '여백: 있음';
+            } else {
+                contentWrapper.classList.remove('max-w-3xl', 'px-6');
+                contentWrapper.classList.add('px-16', 'w-full');
+                btnMargin.innerText = '여백: 없음';
+            }
+        });
+
+        // 안전한 인라인 잠금 처리 (contenteditable="false" 적용)
+        document.getElementById('btn-lock').addEventListener('click', () => {
+            const selection = window.getSelection();
+            if (!selection.rangeCount || selection.isCollapsed) {
+                alert('잠글 영역을 드래그하여 선택해주세요.');
+                return;
+            }
+
+            const range = selection.getRangeAt(0);
+            const span = document.createElement('span');
+            span.className = 'locked-span';
+            span.setAttribute('contenteditable', 'false');
+            span.appendChild(range.extractContents());
+            range.insertNode(span);
+
+            window.getSelection().removeAllRanges();
+            updateCharCount();
+            executeSave(false);
+        });
+
+        // 잠금 해제 기능
+        document.getElementById('btn-unlock').addEventListener('click', () => {
+            const selection = window.getSelection();
+            let unlocked = false;
+
+            if (selection.rangeCount > 0) {
+                let node = selection.anchorNode;
+                if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+
+                const lockedSpan = node ? node.closest('.locked-span') : null;
+                if (lockedSpan) {
+                    const parent = lockedSpan.parentNode;
+                    while (lockedSpan.firstChild) {
+                        parent.insertBefore(lockedSpan.firstChild, lockedSpan);
+                    }
+                    parent.removeChild(lockedSpan);
+                    unlocked = true;
+                }
+            }
+
+            if (!unlocked) {
+                const spans = editor.querySelectorAll('.locked-span');
+                spans.forEach(span => {
+                    if (selection.containsNode(span, true)) {
+                        const parent = span.parentNode;
+                        while (span.firstChild) {
+                            parent.insertBefore(span.firstChild, span);
+                        }
+                        parent.removeChild(span);
+                        unlocked = true;
+                    }
+                });
+            }
+
+            if (unlocked) {
+                alert('잠금이 해제되었습니다.');
+                updateCharCount();
+                executeSave(false);
+            } else {
+                alert('해제할 잠금 영역을 클릭하거나 선택한 후 눌러주세요.');
+            }
+        });
+    </script>
+</body>
+</html>
