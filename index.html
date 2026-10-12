@@ -10,10 +10,9 @@
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        /* 잠긴 영역: 구조 변형 없이 부드러운 음영만 적용 */
+        /* 잠긴 영역: 옅은 회색 음영 */
         .locked-span {
-            background-color: #fef3c7;
-            color: #92400e;
+            background-color: #f3f4f6;
             padding: 0.1rem 0.2rem;
             border-radius: 0.2rem;
         }
@@ -366,7 +365,7 @@
             }
         });
 
-        // 안전한 잠금 처리 (브라우저 입력 이벤트 차단 방식)
+        // 안전한 잠금 처리 (인라인 span 및 입력 차단)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
@@ -385,7 +384,7 @@
             executeSave(false);
         });
 
-        // 잠금 영역 내부 편집 차단 (타이핑/삭제 방지)
+        // 잠금 영역 내부 편집 차단
         editor.addEventListener('beforeinput', (e) => {
             const selection = window.getSelection();
             if (!selection.rangeCount) return;
@@ -393,7 +392,7 @@
             let node = range.startContainer;
             if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
             if (node.closest('.locked-span')) {
-                e.preventDefault(); // 잠긴 영역 내부 입력 원천 차단
+                e.preventDefault();
             }
         });
 
