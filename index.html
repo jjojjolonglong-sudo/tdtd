@@ -10,14 +10,13 @@
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        .locked-block {
-            color: #9ca3af;
-            user-select: none;
-            background-color: #f3f4f6;
-            padding: 0.2rem 0.4rem;
-            border-radius: 0.25rem;
-            display: inline-block;
-            margin: 0.2rem 0;
+        /* 잠긴 영역: 모양 변형 없이 은은한 음영과 편집 방지만 적용 */
+        .locked-span {
+            background-color: #fef3c7;
+            color: #92400e;
+            padding: 0.1rem 0.2rem;
+            border-radius: 0.2rem;
+            user-select: text;
         }
         /* 플레이스홀더 스타일 */
         #editor:empty:before {
@@ -32,7 +31,7 @@
         .font-dodum { font-family: 'Dodum', '돋움', sans-serif; }
         .font-batang { font-family: 'Batang', '바탕', serif; }
 
-        /* 들여쓰기 (절반 크기: 1em) */
+        /* 들여쓰기 (1em) */
         .indent-on p, .indent-on div {
             text-indent: 1em;
         }
@@ -42,11 +41,8 @@
         .leading-normal-custom { line-height: 1.6; }
         .leading-loose-custom { line-height: 2.0; }
 
-        /* 문단 간격 (줄간격과 동일한 비율로 동적 적용) */
-        .para-spacing-on.leading-tight-custom p, .para-spacing-on.leading-tight-custom div { margin-bottom: 1.3em; }
-        .para-spacing-on.leading-normal-custom p, .para-spacing-on.leading-normal-custom div { margin-bottom: 1.6em; }
-        .para-spacing-on.leading-loose-custom p, .para-spacing-on.leading-loose-custom div { margin-bottom: 2.0em; }
-        
+        /* 문단 간격 (적당한 간격 1em) */
+        .para-spacing-on p, .para-spacing-on div { margin-bottom: 1em; }
         .para-spacing-off p, .para-spacing-off div { margin-bottom: 0; }
     </style>
 </head>
@@ -71,7 +67,6 @@
     <div id="app-screen" class="hidden flex flex-col h-full">
         <header class="flex items-center justify-between px-6 py-3 border-b border-gray-200 text-xs select-none bg-gray-50 flex-wrap gap-2 flex-shrink-0">
             <div class="flex items-center gap-2">
-                <!-- 파일 이름 (.md 자동 처리) -->
                 <input type="text" id="file-name" value="untitled" class="border border-gray-300 rounded px-2 py-1 bg-white text-sm font-medium outline-none focus:border-blue-500 w-32" title="파일 이름 (.md 자동 적용)">
                 <span class="text-gray-500 text-xs font-mono">.md</span>
                 <button id="btn-new" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-medium text-gray-700">+ 새 파일</button>
@@ -80,7 +75,6 @@
             </div>
 
             <div class="flex items-center gap-2 flex-wrap">
-                <!-- 폰트 선택 -->
                 <select id="select-font" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
                     <option value="system">기본 고딕</option>
                     <option value="gulim">굴림체</option>
@@ -88,7 +82,6 @@
                     <option value="batang">바탕체</option>
                 </select>
 
-                <!-- 정렬 옵션 -->
                 <select id="select-align" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
                     <option value="justify">정렬: 양쪽</option>
                     <option value="left">정렬: 왼쪽</option>
@@ -96,23 +89,17 @@
                     <option value="right">정렬: 오른쪽</option>
                 </select>
 
-                <!-- 들여쓰기 토글 -->
                 <button id="btn-indent" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">들여쓰기: 끔</button>
 
-                <!-- 줄간격 선택 -->
                 <select id="select-leading" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
                     <option value="normal">줄간격: 보통(1.6)</option>
                     <option value="tight">줄간격: 좁게(1.3)</option>
                     <option value="loose">줄간격: 넓게(2.0)</option>
                 </select>
 
-                <!-- 문단 간격 토글 (있음/없음) -->
                 <button id="btn-para" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">문단간격: 없음</button>
-
-                <!-- 여백 토글 -->
                 <button id="btn-margin" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">여백: 있음</button>
                 
-                <!-- 잠금 및 해제 -->
                 <button id="btn-lock" class="px-2 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded font-medium">🔒 잠금</button>
                 <button id="btn-unlock" class="px-2 py-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded font-medium">🔓 잠금 해제</button>
                 
@@ -120,7 +107,6 @@
             </div>
         </header>
 
-        <!-- 스크롤 컨테이너를 창 전체 너비로 두고, 내부 wrapper로 여백 제어 (스크롤바 위치 창 끝으로 이동) -->
         <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
             <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
                 <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify;"></div>
@@ -209,7 +195,6 @@
             statusBox.innerText = '대기 중...';
         });
 
-        // 문서 불러오기 (.md 자동 결합)
         async function loadDocument() {
             if (!appSupabase) return;
             try {
@@ -239,7 +224,6 @@
 
         fileNameInput.addEventListener('change', loadDocument);
 
-        // 새 파일 생성 버튼
         document.getElementById('btn-new').addEventListener('click', () => {
             const newName = prompt("새 파일의 이름을 입력하세요 (예: chapter1):", `file_${Date.now()}`);
             if (!newName) return;
@@ -248,7 +232,6 @@
             updateCharCount();
         });
 
-        // 글자수 계산 (잠긴 블록 내부 텍스트도 포함 집계)
         function updateCharCount() {
             const text = editor.innerText || '';
             const cleanText = text.trim();
@@ -259,7 +242,6 @@
             charCountSpan.innerText = cleanText.replace(/\s/g, '').length;
         }
 
-        // 공통 저장 실행 함수 (.md 자동 결합)
         async function executeSave(isManual = false) {
             if (!appSupabase) return;
             try {
@@ -319,9 +301,17 @@
             editor.classList.add('font-' + e.target.value);
         });
 
-        // 정렬 옵션
+        // 부분 정렬 옵션 (선택 영역/커서 위치 문단별 개별 적용)
         document.getElementById('select-align').addEventListener('change', (e) => {
-            editor.style.textAlign = e.target.value;
+            const align = e.target.value;
+            let command = 'justifyLeft';
+            if (align === 'center') command = 'justifyCenter';
+            else if (align === 'right') command = 'justifyRight';
+            else if (align === 'justify') command = 'justifyFull';
+            
+            document.execCommand(command, false, null);
+            editor.focus();
+            executeSave(false);
         });
 
         // 들여쓰기 토글
@@ -362,7 +352,7 @@
             }
         });
 
-        // 여백 토글 (스크롤바가 창 끝에 위치하도록 wrapper 패딩만 조절)
+        // 여백 토글
         const btnMargin = document.getElementById('btn-margin');
         btnMargin.addEventListener('click', () => {
             isWideMargin = !isWideMargin;
@@ -377,61 +367,68 @@
             }
         });
 
-        // 문단 단위 선택 영역 잠금
+        // 선택 영역 인라인 잠금 (모양 변형 없이 음영만 적용)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
-                alert('잠글 문단을 드래그하여 선택해주세요.');
+                alert('잠글 영역을 드래그하여 선택해주세요.');
                 return;
             }
 
             const range = selection.getRangeAt(0);
-            const container = range.commonAncestorContainer;
-            
-            // 포함된 블록(p, div 등) 또는 에디터 직접 자식 찾기
-            let targetBlock = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
-            while(targetBlock && targetBlock.parentElement !== editor && targetBlock !== editor) {
-                targetBlock = targetBlock.parentElement;
-            }
-
-            if (!targetBlock || targetBlock === editor) {
-                // 블록이 명확하지 않으면 선택된 텍스트 전체를 감싸는 잠금 span 생성
-                const span = document.createElement('span');
-                span.className = 'locked-block';
-                span.setAttribute('contenteditable', 'false');
-                span.textContent = range.toString();
-                range.deleteContents();
-                range.insertNode(span);
-            } else {
-                // 문단 단위로 전체 잠금 처리
-                targetBlock.setAttribute('contenteditable', 'false');
-                targetBlock.classList.add('locked-block');
-            }
+            const span = document.createElement('span');
+            span.className = 'locked-span';
+            span.setAttribute('contenteditable', 'false');
+            span.appendChild(range.extractContents());
+            range.insertNode(span);
 
             window.getSelection().removeAllRanges();
             updateCharCount();
             executeSave(false);
         });
 
-        // 잠금 해제 기능 (선택된 잠긴 블록 또는 클릭한 잠긴 영역 해제)
+        // 잠금 해제 기능 (선택하거나 커서가 위치한 잠금 영역 원복)
         document.getElementById('btn-unlock').addEventListener('click', () => {
             const selection = window.getSelection();
+            let unlocked = false;
+
             if (selection.rangeCount > 0) {
                 let node = selection.anchorNode;
-                if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+                if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
 
-                // 선택 영역 내 혹은 부모 중 locked-block 찾기
-                const lockedEl = node.closest('.locked-block');
-                if (lockedEl) {
-                    lockedEl.removeAttribute('contenteditable');
-                    lockedEl.classList.remove('locked-block');
-                    alert('잠금이 해제되었습니다.');
-                    updateCharCount();
-                    executeSave(false);
-                    return;
+                const lockedSpan = node ? node.closest('.locked-span') : null;
+                if (lockedSpan) {
+                    const parent = lockedSpan.parentNode;
+                    while (lockedSpan.firstChild) {
+                        parent.insertBefore(lockedSpan.firstChild, lockedSpan);
+                    }
+                    parent.removeChild(lockedSpan);
+                    unlocked = true;
                 }
             }
-            alert('해제할 잠금 영역을 클릭하거나 선택한 후 눌러주세요.');
+
+            // 만약 커서 주변이 아니면 문서 전체에서 선택된 잠금 스팬 해제 시도
+            if (!unlocked) {
+                const spans = editor.querySelectorAll('.locked-span');
+                spans.forEach(span => {
+                    if (selection.containsNode(span, true)) {
+                        const parent = span.parentNode;
+                        while (span.firstChild) {
+                            parent.insertBefore(span.firstChild, span);
+                        }
+                        parent.removeChild(span);
+                        unlocked = true;
+                    }
+                });
+            }
+
+            if (unlocked) {
+                alert('잠금이 해제되었습니다.');
+                updateCharCount();
+                executeSave(false);
+            } else {
+                alert('해제할 잠금 영역을 클릭하거나 선택한 후 눌러주세요.');
+            }
         });
     </script>
 </body>
