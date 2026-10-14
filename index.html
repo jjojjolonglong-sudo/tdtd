@@ -9,22 +9,16 @@
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        /* 문단 잠금: 문단 자체 배경은 없고, 앞뒤로 양옆이 짧게 잘린 회색 음영 줄 생성 */
+        /* 문단 잠금: 상하 띠 제거, 본문 상 위치 유지, 전체 텍스트 뒤에 회색 배경음영 적용 */
         .locked-paragraph {
+            background-color: #e5e7eb;
+            padding: 2px 6px;
+            border-radius: 4px;
             position: relative;
             user-select: text;
         }
-        .locked-paragraph::before,
-        .locked-paragraph::after {
-            content: "";
-            display: block;
-            height: 6px;
-            background-color: #d1d5db;
-            margin: 6px 3rem;
-            border-radius: 2px;
-        }
         /* 우클릭 커스텀 메뉴 스타일 */
-        #context-menu {
+        #context-menu, #title-context-menu {
             display: none;
             position: absolute;
             background: #ffffff;
@@ -35,7 +29,7 @@
             z-index: 10000;
             font-size: 12px;
         }
-        #context-menu button {
+        #context-menu button, #title-context-menu button {
             display: block;
             width: 100%;
             text-align: left;
@@ -46,7 +40,7 @@
             border-radius: 0.25rem;
             color: #374151;
         }
-        #context-menu button:hover {
+        #context-menu button:hover, #title-context-menu button:hover {
             background-color: #f3f4f6;
             color: #111827;
         }
@@ -80,9 +74,14 @@
 </head>
 <body class="bg-white text-gray-900 h-screen flex flex-col m-0 overflow-hidden">
 
-    <!-- 우클릭 커스텀 메뉴 -->
+    <!-- 우클릭 커스텀 메뉴 (문단 잠금 해제용) -->
     <div id="context-menu">
         <button id="menu-unlock-btn">🔓 잠금 해제</button>
+    </div>
+
+    <!-- 파일 제목 우클릭 메뉴 -->
+    <div id="title-context-menu">
+        <button id="menu-edit-title-btn">✏️ 이름 수정</button>
     </div>
 
     <div id="app-screen" class="flex flex-col h-full">
@@ -95,9 +94,11 @@
                     <option value="">파일 목록</option>
                 </select>
 
-                <!-- 파일 이름 입력 칸 (.md 자동 적용) -->
-                <input type="text" id="file-name" value="untitled" class="border border-gray-300 rounded px-2 py-1 bg-white text-sm font-medium outline-none focus:border-blue-500 w-28" title="파일 이름 (.md 자동 적용)">
-                <span class="text-gray-500 text-xs font-mono">.md</span>
+                <!-- 파일 이름 영역 (.md 감추기 및 우클릭 수정 지원) -->
+                <div id="file-title-wrapper" class="relative flex items-center">
+                    <span id="file-title-display" class="border border-transparent hover:border-gray-300 rounded px-2 py-1 bg-transparent text-sm font-medium cursor-pointer" title="우클릭하여 이름 수정">untitled</span>
+                    <input type="text" id="file-name" value="untitled" class="border border-gray-300 rounded px-2 py-1 bg-white text-sm font-medium outline-none focus:border-blue-500 w-28 hidden" title="파일 이름">
+                </div>
 
                 <button id="btn-save" class="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded font-medium">수동저장</button>
                 <span id="auto-save-status" class="text-gray-400 text-[11px] ml-1">폴더 미지정</span>
@@ -127,7 +128,7 @@
                 </select>
 
                 <button id="btn-para" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">문단간격: 없음</button>
-                <button id="btn-margin" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">여백: 있음</button>
+                <button id="btn-margin" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">여백: 중간</button>
                 
                 <button id="btn-lock" class="px-2 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded font-medium">🔒 문단 잠금</button>
             </div>
@@ -139,8 +140,9 @@
             </div>
         </main>
 
-        <footer class="fixed bottom-3 right-6 text-gray-500 text-xs select-none z-50 pointer-events-none">
-            공백 미포함 글자수: <span id="char-count">0</span>자
+        <!-- 하단 글자수 표기 바 (스크롤 영향 받지 않음) -->
+        <footer class="fixed bottom-0 left-0 w-full bg-white/90 border-t border-gray-200 py-1.5 px-6 text-gray-500 text-xs select-none z-40 flex justify-end">
+            <span id="char-count">글자수 0 (0)</span>
         </footer>
     </div>
 
@@ -148,13 +150,16 @@
         const editor = document.getElementById('editor');
         const charCountSpan = document.getElementById('char-count');
         const fileNameInput = document.getElementById('file-name');
+        const fileTitleDisplay = document.getElementById('file-title-display');
+        const fileTitleWrapper = document.getElementById('file-title-wrapper');
+        const titleContextMenu = document.getElementById('title-context-menu');
         const fileSelect = document.getElementById('file-select');
         const autoSaveStatus = document.getElementById('auto-save-status');
         const contentWrapper = document.getElementById('content-wrapper');
         const contextMenu = document.getElementById('context-menu');
         
         let dirHandle = null;
-        let isWideMargin = true;
+        let marginMode = 2; // 0: 없음, 1: 좁음, 2: 중간, 3: 넓음
         let isIndentOn = false;
         let isParaOn = false;
         let autoSaveTimer = null;
@@ -167,7 +172,7 @@
                 indent: isIndentOn,
                 leading: document.getElementById('select-leading').value,
                 para: isParaOn,
-                margin: isWideMargin
+                margin: marginMode
             };
             
             localStorage.setItem('tdtd_app_settings', JSON.stringify(settings));
@@ -241,22 +246,39 @@
                     }
                 }
                 if (s.margin !== undefined) {
-                    isWideMargin = s.margin;
-                    const btnMargin = document.getElementById('btn-margin');
-                    if (isWideMargin) {
-                        contentWrapper.classList.add('max-w-3xl', 'px-6');
-                        contentWrapper.classList.remove('px-16');
-                        btnMargin.innerText = '여백: 있음';
-                    } else {
-                        contentWrapper.classList.remove('max-w-3xl', 'px-6');
-                        contentWrapper.classList.add('px-16', 'w-full');
-                        btnMargin.innerText = '여백: 없음';
-                    }
+                    marginMode = s.margin;
+                    applyMarginMode();
                 }
             } catch (e) {
                 console.error('설정 적용 실패:', e);
             }
         }
+
+        function applyMarginMode() {
+            const btnMargin = document.getElementById('btn-margin');
+            contentWrapper.className = 'w-full min-h-full flex flex-col mx-auto transition-all duration-300';
+            
+            if (marginMode === 0) { // 없음
+                contentWrapper.classList.add('max-w-none', 'px-4');
+                btnMargin.innerText = '여백: 없음';
+            } else if (marginMode === 1) { // 좁음
+                contentWrapper.classList.add('max-w-5xl', 'px-8');
+                btnMargin.innerText = '여백: 좁음';
+            } else if (marginMode === 2) { // 중간
+                contentWrapper.classList.add('max-w-3xl', 'px-6');
+                btnMargin.innerText = '여백: 중간';
+            } else if (marginMode === 3) { // 넓음
+                contentWrapper.classList.add('max-w-xl', 'px-4');
+                btnMargin.innerText = '여백: 넓음';
+            }
+        }
+
+        // 여백 버튼 클릭 시 4가지 모드 순환 (없음 -> 좁음 -> 중간 -> 넓음)
+        document.getElementById('btn-margin').addEventListener('click', () => {
+            marginMode = (marginMode + 1) % 4;
+            applyMarginMode();
+            saveSettings();
+        });
 
         // 폴더 지정 버튼
         document.getElementById('btn-folder').addEventListener('click', async () => {
@@ -271,7 +293,7 @@
             }
         });
 
-        // 파일 목록 불러오기 (맨 위에 안내 옵션 유지)
+        // 파일 목록 불러오기 (.md 파일만, 목록 표시는 확장자 제외 또는 포함 무관하게 관리)
         async function loadFileList() {
             if (!dirHandle) return;
             fileSelect.innerHTML = '<option value="">파일 목록</option>';
@@ -280,7 +302,7 @@
                 if (entry.kind === 'file' && entry.name.endsWith('.md')) {
                     const opt = document.createElement('option');
                     opt.value = entry.name;
-                    opt.textContent = entry.name;
+                    opt.textContent = entry.name.replace(/\.md$/, ''); // 목록에서도 .md 감추기 적용
                     fileSelect.appendChild(opt);
                 }
             }
@@ -291,29 +313,30 @@
             const val = e.target.value;
             if (!val || !dirHandle) return;
 
+            const fullName = val.endsWith('.md') ? val : val + '.md';
             try {
-                const fileHandle = await dirHandle.getFileHandle(val);
+                const fileHandle = await dirHandle.getFileHandle(fullName);
                 const file = await fileHandle.getFile();
                 const text = await file.text();
                 editor.innerHTML = text;
-                fileNameInput.value = val.replace(/\.md$/, '');
+                const cleanName = val.replace(/\.md$/, '');
+                fileNameInput.value = cleanName;
+                fileTitleDisplay.innerText = cleanName;
                 updateCharCount();
             } catch (err) {
                 alert('파일 읽기 실패: ' + err.message);
             }
         });
 
+        // 글자수 표기: 글자수 0,000 (0,000) 괄호밖 공백포함, 괄호안 미포함
         function updateCharCount() {
             const text = editor.innerText || '';
-            const cleanText = text.trim();
-            if (!cleanText) {
-                charCountSpan.innerText = '0';
-                return;
-            }
-            charCountSpan.innerText = cleanText.replace(/\s/g, '').length;
+            const withSpaces = text.length;
+            const withoutSpaces = text.replace(/\s/g, '').length;
+            charCountSpan.innerText = `글자수 ${withSpaces.toLocaleString()} (${withoutSpaces.toLocaleString()})`;
         }
 
-        // 자동 저장 (.md 자동 결합)
+        // 자동 저장 (.md 자동 결합 관리)
         async function executeAutoSave() {
             if (!dirHandle) return;
             const rawName = fileNameInput.value.trim() || 'untitled';
@@ -338,9 +361,43 @@
             autoSaveTimer = setTimeout(() => { executeAutoSave(); }, 1000);
         });
 
-        fileNameInput.addEventListener('change', () => {
+        // 파일 제목 수정 후 엔터 시 고정 모드 전환
+        fileNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                commitTitleEdit();
+            }
+        });
+
+        fileNameInput.addEventListener('blur', () => {
+            commitTitleEdit();
+        });
+
+        function commitTitleEdit() {
+            let val = fileNameInput.value.trim() || 'untitled';
+            val = val.replace(/\.md$/, ''); // .md 입력 방지/감추기
+            fileNameInput.value = val;
+            fileTitleDisplay.innerText = val;
+            fileNameInput.classList.add('hidden');
+            fileTitleDisplay.classList.remove('hidden');
             executeAutoSave();
             loadFileList();
+        }
+
+        // 파일 제목 영역 우클릭 메뉴 처리
+        fileTitleDisplay.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            titleContextMenu.style.display = 'block';
+            titleContextMenu.style.left = e.pageX + 'px';
+            titleContextMenu.style.top = e.pageY + 'px';
+        });
+
+        document.getElementById('menu-edit-title-btn').addEventListener('click', () => {
+            titleContextMenu.style.display = 'none';
+            fileTitleDisplay.classList.add('hidden');
+            fileNameInput.classList.remove('hidden');
+            fileNameInput.focus();
+            fileNameInput.select();
         });
 
         // 수동 저장 버튼
@@ -447,22 +504,7 @@
             saveSettings();
         });
 
-        const btnMargin = document.getElementById('btn-margin');
-        btnMargin.addEventListener('click', () => {
-            isWideMargin = !isWideMargin;
-            if (isWideMargin) {
-                contentWrapper.classList.add('max-w-3xl', 'px-6');
-                contentWrapper.classList.remove('px-16');
-                btnMargin.innerText = '여백: 있음';
-            } else {
-                contentWrapper.classList.remove('max-w-3xl', 'px-6');
-                contentWrapper.classList.add('px-16', 'w-full');
-                btnMargin.innerText = '여백: 없음';
-            }
-            saveSettings();
-        });
-
-        // 문단 단위 잠금 처리 (선택 영역이 걸치는 문단들을 찾아 앞뒤로 줄 생성 및 잠금)
+        // 문단 단위 잠금 처리 (상하 띠 제거, 본문 위치 유지, 문단 텍스트 전체 회색 배경음영)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
@@ -538,8 +580,10 @@
             }
         });
 
+        // 전역 클릭 시 커스텀 메뉴 닫기
         window.addEventListener('click', () => {
             contextMenu.style.display = 'none';
+            titleContextMenu.style.display = 'none';
         });
 
         // 우클릭 메뉴에서 잠금 해제 실행
