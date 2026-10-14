@@ -134,10 +134,11 @@
             </div>
         </header>
 
-        <!-- 본문 영역: 하단 글자수 바와 겹치지 않도록 pb-20 패딩 추가 -->
-        <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300 pb-20">
-            <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 pb-32 w-full min-h-full flex flex-col">
-                <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify;"></div>
+        <!-- 본문 영역 스크롤바 -->
+        <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
+            <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
+                <!-- 에디터 내부에 넉넉한 하단 패딩(padding-bottom: 60vh)을 주어 커서가 항상 위쪽에 유지되도록 함 -->
+                <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 60vh;"></div>
             </div>
         </main>
 
@@ -324,7 +325,7 @@
 
         function applyMarginMode() {
             const btnMargin = document.getElementById('btn-margin');
-            contentWrapper.className = 'w-full min-h-full flex flex-col mx-auto transition-all duration-300 pb-32';
+            contentWrapper.className = 'w-full min-h-full flex flex-col mx-auto transition-all duration-300';
             
             if (marginMode === 0) { // 없음
                 contentWrapper.classList.add('max-w-none', 'px-4');
@@ -601,7 +602,7 @@
             let blocks = Array.from(editor.querySelectorAll('p, div')).filter(el => el.parentElement === editor);
             if (blocks.length === 0) {
                 if (editor.innerHTML.trim() !== '') {
-                    editor.innerHTML = `<div>${editor.innerHTML}</div>`;
+                    editor.innerHTML = `<div>${editor.innerHTML}` + `</div>`;
                     blocks = Array.from(editor.querySelectorAll('p, div')).filter(el => el.parentElement === editor);
                 }
             }
