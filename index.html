@@ -157,6 +157,7 @@
         const autoSaveStatus = document.getElementById('auto-save-status');
         const contentWrapper = document.getElementById('content-wrapper');
         const contextMenu = document.getElementById('context-menu');
+        const btnFolder = document.getElementById('btn-folder');
         
         let dirHandle = null;
         let marginMode = 2; // 0: 없음, 1: 좁음, 2: 중간, 3: 넓음
@@ -164,6 +165,74 @@
         let isParaOn = false;
         let autoSaveTimer = null;
         let currentLockedBlock = null;
+
+        // IndexedDB를 이용한 디렉토리 핸들 저장/조회
+        const DB_NAME = 'TdtdAppDB';
+        const STORE_NAME = 'handles';
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME);
+                    }
+                };
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async function saveHandleToDB(handle) {
+            try {
+                const db = await openDB();
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                tx.objectStore(STORE_NAME).put(handle, 'savedDirHandle');
+                return new Promise((resolve, reject) => {
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (e) {
+                console.error('핸들 DB 저장 실패:', e);
+            }
+        }
+
+        async function getHandleFromDB() {
+            try {
+                const db = await openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const request = tx.objectStore(STORE_NAME).get('savedDirHandle');
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // 앱 시작 시 이전 폴더 핸들 복구 시도
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadSettings();
+            const savedHandle = await getHandleFromDB();
+            if (savedHandle) {
+                // 브라우저 보안 규정상 권한(permission) 상태를 확인해야 함
+                if ((await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted') {
+                    dirHandle = savedHandle;
+                    autoSaveStatus.innerText = '자동저장 켜짐';
+                    btnFolder.innerText = '폴더 연결됨';
+                    btnFolder.classList.add('bg-blue-100', 'text-blue-800');
+                    await loadFileList();
+                } else {
+                    // 권한 재확인이 필요한 경우 (클릭 시 권한 요청)
+                    dirHandle = savedHandle;
+                    autoSaveStatus.innerText = '클릭하여 폴더 권한 허용';
+                    btnFolder.innerText = '폴더 권한 재확인';
+                    btnFolder.classList.add('bg-amber-100', 'text-amber-800');
+                }
+            }
+        });
 
         // 지정 폴더 내 settings.json에 설정 저장
         async function saveSettings() {
@@ -273,18 +342,36 @@
             }
         }
 
-        // 여백 버튼 클릭 시 4가지 모드 순환 (없음 -> 좁음 -> 중간 -> 넓음)
+        // 여백 버튼 클릭 시 4가지 모드 순환
         document.getElementById('btn-margin').addEventListener('click', () => {
             marginMode = (marginMode + 1) % 4;
             applyMarginMode();
             saveSettings();
         });
 
-        // 폴더 지정 버튼
-        document.getElementById('btn-folder').addEventListener('click', async () => {
+        // 폴더 지정 버튼 (새로고침 후 권한 재요청 또는 신규 지정 통합)
+        btnFolder.addEventListener('click', async () => {
             try {
+                if (dirHandle) {
+                    // 권한 재요청
+                    const permission = await dirHandle.requestPermission({ mode: 'readwrite' });
+                    if (permission === 'granted') {
+                        autoSaveStatus.innerText = '자동저장 켜짐';
+                        btnFolder.innerText = '폴더 연결됨';
+                        btnFolder.classList.remove('bg-amber-100', 'text-amber-800');
+                        btnFolder.classList.add('bg-blue-100', 'text-blue-800');
+                        await loadFileList();
+                        await loadSettings();
+                        return;
+                    }
+                }
+                // 새로 지정
                 dirHandle = await window.showDirectoryPicker();
+                await saveHandleToDB(dirHandle);
                 autoSaveStatus.innerText = '자동저장 켜짐';
+                btnFolder.innerText = '폴더 연결됨';
+                btnFolder.classList.remove('bg-amber-100', 'text-amber-800');
+                btnFolder.classList.add('bg-blue-100', 'text-blue-800');
                 alert('저장 폴더가 지정되었습니다.');
                 await loadFileList();
                 await loadSettings();
@@ -293,7 +380,7 @@
             }
         });
 
-        // 파일 목록 불러오기 (.md 파일만, 목록 표시는 확장자 제외 또는 포함 무관하게 관리)
+        // 파일 목록 불러오기
         async function loadFileList() {
             if (!dirHandle) return;
             fileSelect.innerHTML = '<option value="">파일 목록</option>';
@@ -302,7 +389,7 @@
                 if (entry.kind === 'file' && entry.name.endsWith('.md')) {
                     const opt = document.createElement('option');
                     opt.value = entry.name;
-                    opt.textContent = entry.name.replace(/\.md$/, ''); // 목록에서도 .md 감추기 적용
+                    opt.textContent = entry.name.replace(/\.md$/, '');
                     fileSelect.appendChild(opt);
                 }
             }
@@ -328,7 +415,7 @@
             }
         });
 
-        // 글자수 표기: 글자수 0,000 (0,000) 괄호밖 공백포함, 괄호안 미포함
+        // 글자수 표기
         function updateCharCount() {
             const text = editor.innerText || '';
             const withSpaces = text.length;
@@ -336,7 +423,7 @@
             charCountSpan.innerText = `글자수 ${withSpaces.toLocaleString()} (${withoutSpaces.toLocaleString()})`;
         }
 
-        // 자동 저장 (.md 자동 결합 관리)
+        // 자동 저장
         async function executeAutoSave() {
             if (!dirHandle) return;
             const rawName = fileNameInput.value.trim() || 'untitled';
@@ -375,7 +462,7 @@
 
         function commitTitleEdit() {
             let val = fileNameInput.value.trim() || 'untitled';
-            val = val.replace(/\.md$/, ''); // .md 입력 방지/감추기
+            val = val.replace(/\.md$/, '');
             fileNameInput.value = val;
             fileTitleDisplay.innerText = val;
             fileNameInput.classList.add('hidden');
@@ -504,7 +591,7 @@
             saveSettings();
         });
 
-        // 문단 단위 잠금 처리 (상하 띠 제거, 본문 위치 유지, 문단 텍스트 전체 회색 배경음영)
+        // 문단 단위 잠금 처리
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
@@ -572,11 +659,11 @@
                 e.preventDefault();
                 currentLockedBlock = lockedBlock;
                 
-                contextMenu.style.display = 'block';
-                contextMenu.style.left = e.pageX + 'px';
-                contextMenu.style.top = e.pageY + 'px';
+                contentMenu.style.display = 'block';
+                contentMenu.style.left = e.pageX + 'px';
+                contentMenu.style.top = e.pageY + 'px';
             } else {
-                contextMenu.style.display = 'none';
+                contentMenu.style.display = 'none';
             }
         });
 
