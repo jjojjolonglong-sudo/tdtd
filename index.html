@@ -137,8 +137,8 @@
         <!-- 본문 영역 스크롤바 -->
         <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
             <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
-                <!-- 에디터 내부에 넉넉한 하단 패딩(padding-bottom: 60vh)을 주어 커서가 항상 위쪽에 유지되도록 함 -->
-                <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 60vh;"></div>
+                <!-- 에디터 하단에 충분한 패딩을 주어 문서 끝에서도 여유 공간 확보 -->
+                <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
             </div>
         </main>
 
@@ -160,6 +160,7 @@
         const contentWrapper = document.getElementById('content-wrapper');
         const contextMenu = document.getElementById('context-menu');
         const btnFolder = document.getElementById('btn-folder');
+        const mainContainer = document.getElementById('main-container');
         
         let dirHandle = null;
         let marginMode = 2; // 0: 없음, 1: 좁음, 2: 중간, 3: 넓음
@@ -421,6 +422,29 @@
             charCountSpan.innerText = `글자수 ${withSpaces.toLocaleString()} (${withoutSpaces.toLocaleString()})`;
         }
 
+        // 커서 위치가 화면 하단에 가려지지 않도록 스크롤을 자동으로 위로 밀어 올리는 함수 (5줄 여유 유지)
+        function ensureCursorVisible() {
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+            const range = selection.getRangeAt(0);
+            
+            let rect = range.getBoundingClientRect();
+            if (rect.top === 0 && rect.bottom === 0) {
+                const span = document.createElement('span');
+                span.textContent = '\u200b';
+                range.insertNode(span);
+                rect = span.getBoundingClientRect();
+                span.remove();
+            }
+
+            const containerRect = mainContainer.getBoundingClientRect();
+            const bottomThreshold = containerRect.bottom - 150; // 하단에서 약 5줄(150px) 여유 공간 보장
+
+            if (rect.bottom > bottomThreshold) {
+                mainContainer.scrollTop += (rect.bottom - bottomThreshold);
+            }
+        }
+
         // 자동 저장
         async function executeAutoSave() {
             if (!dirHandle) return;
@@ -433,255 +457,4 @@
                 await writable.write(editor.innerHTML);
                 await writable.close();
                 autoSaveStatus.innerText = '저장됨';
-                setTimeout(() => { autoSaveStatus.innerText = '자동저장 켜짐'; }, 2000);
-            } catch (err) {
-                autoSaveStatus.innerText = '저장 실패';
-            }
-        }
-
-        editor.addEventListener('input', () => {
-            updateCharCount();
-            autoSaveStatus.innerText = '저장 중...';
-            if (autoSaveTimer) clearTimeout(autoSaveTimer);
-            autoSaveTimer = setTimeout(() => { executeAutoSave(); }, 1000);
-        });
-
-        // 파일 제목 수정 후 엔터 시 고정 모드 전환
-        fileNameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                commitTitleEdit();
-            }
-        });
-
-        fileNameInput.addEventListener('blur', () => {
-            commitTitleEdit();
-        });
-
-        function commitTitleEdit() {
-            let val = fileNameInput.value.trim() || 'untitled';
-            val = val.replace(/\.md$/, '');
-            fileNameInput.value = val;
-            fileTitleDisplay.innerText = val;
-            fileNameInput.classList.add('hidden');
-            fileTitleDisplay.classList.remove('hidden');
-            executeAutoSave();
-            loadFileList();
-        }
-
-        // 파일 제목 영역 우클릭 메뉴 처리
-        fileTitleDisplay.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            titleContextMenu.style.display = 'block';
-            titleContextMenu.style.left = e.pageX + 'px';
-            titleContextMenu.style.top = e.pageY + 'px';
-        });
-
-        document.getElementById('menu-edit-title-btn').addEventListener('click', () => {
-            titleContextMenu.style.display = 'none';
-            fileTitleDisplay.classList.add('hidden');
-            fileNameInput.classList.remove('hidden');
-            fileNameInput.focus();
-            fileNameInput.select();
-        });
-
-        // 수동 저장 버튼
-        document.getElementById('btn-save').addEventListener('click', async () => {
-            if (!dirHandle) {
-                alert('먼저 "저장 폴더 지정" 버튼을 눌러주세요.');
-                return;
-            }
-            await executeAutoSave();
-            await loadFileList();
-            alert('저장되었습니다.');
-        });
-
-        // 외부 복사 시 줄바꿈 최적화
-        editor.addEventListener('copy', (e) => {
-            const selection = window.getSelection();
-            if (!selection.isCollapsed) {
-                e.preventDefault();
-                const range = selection.getRangeAt(0);
-                const div = document.createElement('div');
-                div.appendChild(range.cloneContents());
-
-                function getCleanText(node) {
-                    let result = '';
-                    node.childNodes.forEach(child => {
-                        if (child.nodeType === Node.TEXT_NODE) {
-                            result += child.nodeValue;
-                        } else if (child.nodeType === Node.ELEMENT_NODE) {
-                            if (child.tagName === 'BR') {
-                                result += '\n';
-                            } else {
-                                let inner = getCleanText(child);
-                                if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI'].includes(child.tagName)) {
-                                    if (inner.length > 0 && !inner.endsWith('\n')) {
-                                        inner += '\n';
-                                    }
-                                }
-                                result += inner;
-                            }
-                        }
-                    });
-                    return result;
-                }
-
-                let cleanText = getCleanText(div).replace(/\n{3,}/g, '\n\n').trim();
-                e.clipboardData.setData('text/plain', cleanText);
-            }
-        });
-
-        // 서식 제어 및 설정 저장 연동
-        document.getElementById('select-font').addEventListener('change', (e) => {
-            editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
-            editor.classList.add('font-' + e.target.value);
-            saveSettings();
-        });
-
-        document.getElementById('select-align').addEventListener('change', (e) => {
-            const align = e.target.value;
-            let command = 'justifyLeft';
-            if (align === 'center') command = 'justifyCenter';
-            else if (align === 'right') command = 'justifyRight';
-            else if (align === 'justify') command = 'justifyFull';
-            
-            document.execCommand(command, false, null);
-            editor.focus();
-            executeAutoSave();
-        });
-
-        const btnIndent = document.getElementById('btn-indent');
-        btnIndent.addEventListener('click', () => {
-            isIndentOn = !isIndentOn;
-            if (isIndentOn) {
-                editor.classList.add('indent-on');
-                btnIndent.innerText = '들여쓰기: 켜짐';
-                btnIndent.classList.add('bg-blue-100', 'text-blue-800');
-            } else {
-                editor.classList.remove('indent-on');
-                btnIndent.innerText = '들여쓰기: 끔';
-                btnIndent.classList.remove('bg-blue-100', 'text-blue-800');
-            }
-            saveSettings();
-        });
-
-        document.getElementById('select-leading').addEventListener('change', (e) => {
-            editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
-            editor.classList.add('leading-' + e.target.value + '-custom');
-            saveSettings();
-        });
-
-        const btnPara = document.getElementById('btn-para');
-        btnPara.addEventListener('click', () => {
-            isParaOn = !isParaOn;
-            if (isParaOn) {
-                editor.classList.remove('para-spacing-off');
-                editor.classList.add('para-spacing-on');
-                btnPara.innerText = '문단간격: 있음';
-                btnPara.classList.add('bg-blue-100', 'text-blue-800');
-            } else {
-                editor.classList.remove('para-spacing-on');
-                editor.classList.add('para-spacing-off');
-                btnPara.innerText = '문단간격: 없음';
-                btnPara.classList.remove('bg-blue-100', 'text-blue-800');
-            }
-            saveSettings();
-        });
-
-        // 문단 단위 잠금 처리
-        document.getElementById('btn-lock').addEventListener('click', () => {
-            const selection = window.getSelection();
-            if (!selection.rangeCount || selection.isCollapsed) {
-                alert('잠글 문단 영역을 드래그하여 선택해주세요.');
-                return;
-            }
-
-            const range = selection.getRangeAt(0);
-            
-            let blocks = Array.from(editor.querySelectorAll('p, div')).filter(el => el.parentElement === editor);
-            if (blocks.length === 0) {
-                if (editor.innerHTML.trim() !== '') {
-                    editor.innerHTML = `<div>${editor.innerHTML}` + `</div>`;
-                    blocks = Array.from(editor.querySelectorAll('p, div')).filter(el => el.parentElement === editor);
-                }
-            }
-
-            let targetBlocks = [];
-            blocks.forEach(block => {
-                const blockRange = document.createRange();
-                blockRange.selectNodeContents(block);
-                
-                if (
-                    range.compareBoundaryPoints(Range.END_TO_START, blockRange) <= 0 &&
-                    range.compareBoundaryPoints(Range.START_TO_END, blockRange) >= 0
-                ) {
-                    targetBlocks.push(block);
-                }
-            });
-
-            if (targetBlocks.length === 0) {
-                let startNode = range.startContainer;
-                let endNode = range.endContainer;
-                let startBlock = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode;
-                let endBlock = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode;
-
-                while (startBlock && startBlock.parentElement !== editor && startBlock !== editor) startBlock = startBlock.parentElement;
-                while (endBlock && endBlock.parentElement !== editor && endBlock !== editor) endBlock = endBlock.parentElement;
-
-                if (startBlock && startBlock !== editor) targetBlocks.push(startBlock);
-                if (endBlock && endBlock !== editor && endBlock !== startBlock) targetBlocks.push(endBlock);
-            }
-
-            if (targetBlocks.length === 0) {
-                let parent = range.commonAncestorContainer;
-                if (parent.nodeType === Node.TEXT_NODE) parent = parent.parentElement;
-                while (parent && parent.parentElement !== editor && parent !== editor) parent = parent.parentElement;
-                if (parent && parent !== editor) targetBlocks.push(parent);
-            }
-
-            targetBlocks.forEach(block => {
-                block.setAttribute('contenteditable', 'false');
-                block.classList.add('locked-paragraph');
-            });
-
-            window.getSelection().removeAllRanges();
-            updateCharCount();
-            executeAutoSave();
-        });
-
-        // 잠긴 문단 우클릭 시 컨텍스트 메뉴 표시
-        editor.addEventListener('contextmenu', (e) => {
-            const lockedBlock = e.target.closest('.locked-paragraph');
-            if (lockedBlock) {
-                e.preventDefault();
-                currentLockedBlock = lockedBlock;
-                
-                contentMenu.style.display = 'block';
-                contentMenu.style.left = e.pageX + 'px';
-                contentMenu.style.top = e.pageY + 'px';
-            } else {
-                contentMenu.style.display = 'none';
-            }
-        });
-
-        // 전역 클릭 시 커스텀 메뉴 닫기
-        window.addEventListener('click', () => {
-            contextMenu.style.display = 'none';
-            titleContextMenu.style.display = 'none';
-        });
-
-        // 우클릭 메뉴에서 잠금 해제 실행
-        document.getElementById('menu-unlock-btn').addEventListener('click', () => {
-            if (currentLockedBlock) {
-                currentLockedBlock.removeAttribute('contenteditable');
-                currentLockedBlock.classList.remove('locked-paragraph');
-                updateCharCount();
-                executeAutoSave();
-            }
-            contextMenu.style.display = 'none';
-            currentLockedBlock = null;
-        });
-    </script>
-</body>
-</html>
+                setTimeout(()
