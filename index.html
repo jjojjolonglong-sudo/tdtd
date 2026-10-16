@@ -528,8 +528,8 @@
             alert('저장되었습니다.');
         });
 
-        // TXT 내보내기 버튼 (앱 내 줄바꿈 구조 반영)
-        document.getElementById('btn-export-txt').addEventListener('click', () => {
+        // TXT 내보내기 버튼 (연결된 폴더가 있으면 해당 경로에 직접 저장, 없으면 브라우저 다운로드)
+        document.getElementById('btn-export-txt').addEventListener('click', async () => {
             const rawName = fileNameInput.value.trim() || 'untitled';
             const fileName = rawName.replace(/\.md$/, '') + '.txt';
 
@@ -560,6 +560,21 @@
 
             let cleanText = getCleanText(div).replace(/\n{3,}/g, '\n\n').trim();
 
+            // 연결된 폴더가 있는 경우 해당 경로에 직접 저장
+            if (dirHandle) {
+                try {
+                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(cleanText);
+                    await writable.close();
+                    alert(`연결된 폴더에 TXT 파일이 저장되었습니다:\n${fileName}`);
+                    return;
+                } catch (err) {
+                    console.error('폴더 내 TXT 저장 실패:', err);
+                }
+            }
+
+            // 폴더가 지정되지 않았거나 실패한 경우 기존 브라우저 다운로드 실행
             const blob = new Blob([cleanText], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
