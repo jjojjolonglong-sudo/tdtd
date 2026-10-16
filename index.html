@@ -101,6 +101,7 @@
                 </div>
 
                 <button id="btn-save" class="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded font-medium">수동저장</button>
+                <button id="btn-export-txt" class="px-2.5 py-1 bg-emerald-600 text-white hover:bg-emerald-700 rounded font-medium">TXT 내보내기</button>
                 <span id="auto-save-status" class="text-gray-400 text-[11px] ml-1">폴더 미지정</span>
             </div>
 
@@ -527,6 +528,49 @@
             alert('저장되었습니다.');
         });
 
+        // TXT 내보내기 버튼 (앱 내 줄바꿈 구조 반영)
+        document.getElementById('btn-export-txt').addEventListener('click', () => {
+            const rawName = fileNameInput.value.trim() || 'untitled';
+            const fileName = rawName.replace(/\.md$/, '') + '.txt';
+
+            const div = document.createElement('div');
+            div.innerHTML = editor.innerHTML;
+
+            function getCleanText(node) {
+                let result = '';
+                node.childNodes.forEach(child => {
+                    if (child.nodeType === Node.TEXT_NODE) {
+                        result += child.nodeValue;
+                    } else if (child.nodeType === Node.ELEMENT_NODE) {
+                        if (child.tagName === 'BR') {
+                            result += '\n';
+                        } else {
+                            let inner = getCleanText(child);
+                            if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI'].includes(child.tagName)) {
+                                if (inner.length > 0 && !inner.endsWith('\n')) {
+                                    inner += '\n';
+                                }
+                            }
+                            result += inner;
+                        }
+                    }
+                });
+                return result;
+            }
+
+            let cleanText = getCleanText(div).replace(/\n{3,}/g, '\n\n').trim();
+
+            const blob = new Blob([cleanText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
         // 외부 복사 시 줄바꿈 최적화
         editor.addEventListener('copy', (e) => {
             const selection = window.getSelection();
@@ -681,7 +725,7 @@
             executeAutoSave();
         });
 
-        // 잠긴 문단 우클릭 시 컨텍스트 메뉴 표시 (변수명 contextMenu로 수정 완료)
+        // 잠긴 문단 우클릭 시 컨텍스트 메뉴 표시
         editor.addEventListener('contextmenu', (e) => {
             const lockedBlock = e.target.closest('.locked-paragraph');
             if (lockedBlock) {
