@@ -681,18 +681,18 @@
             executeAutoSave();
         });
 
-        // 잠긴 문단 우클릭 시 컨텍스트 메뉴 표시
+        // 잠긴 문단 우클릭 시 컨텍스트 메뉴 표시 (변수명 contextMenu로 수정 완료)
         editor.addEventListener('contextmenu', (e) => {
             const lockedBlock = e.target.closest('.locked-paragraph');
             if (lockedBlock) {
                 e.preventDefault();
                 currentLockedBlock = lockedBlock;
                 
-                contentMenu.style.display = 'block';
-                contentMenu.style.left = e.pageX + 'px';
-                contentMenu.style.top = e.pageY + 'px';
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.top = e.pageY + 'px';
             } else {
-                contentMenu.style.display = 'none';
+                contextMenu.style.display = 'none';
             }
         });
 
