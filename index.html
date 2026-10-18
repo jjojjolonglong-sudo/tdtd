@@ -22,7 +22,7 @@
             position: relative;
         }
 
-        /* 한글 스타일 우측 여백 메모 박스 (테두리 없음, 옅은 음영, 300px 넉넉한 너비) */
+        /* 우측 여백 메모 박스 (테두리 없음, 옅은 음영, 300px 넉넉한 너비, 첫줄 나란히 정렬) */
         .para-memo {
             position: absolute;
             left: calc(100% + 1.5rem);
@@ -39,12 +39,6 @@
             text-indent: 0 !important;
             z-index: 10;
         }
-        .para-memo:empty:before {
-            content: "메모 입력...";
-            color: #9ca3af;
-            pointer-events: none;
-            display: block;
-        }
         /* 문단 첫 줄과 메모를 잇는 연결선 */
         .para-memo::before {
             content: "";
@@ -54,17 +48,6 @@
             width: 1.5rem;
             height: 1px;
             background-color: #cbd5e1;
-        }
-
-        /* 창이 좁거나 여백이 없을 때만 우측 메모 공간 확보 */
-        @media (max-width: 1280px) {
-            #content-wrapper.has-memo {
-                padding-right: 340px !important;
-            }
-        }
-        /* 여백 없음 모드일 때 메모가 있으면 우측 여백 자동 확보 */
-        #content-wrapper.margin-none.has-memo {
-            padding-right: 340px !important;
         }
 
         /* 우클릭 커스텀 메뉴 스타일 */
@@ -267,16 +250,6 @@
             }
         }
 
-        // 메모 존재 여부에 따라 본문 레이아웃 상태 동적 조절
-        function updateMemoLayoutState() {
-            const hasMemos = editor.querySelectorAll('.para-memo').length > 0;
-            if (hasMemos) {
-                contentWrapper.classList.add('has-memo');
-            } else {
-                contentWrapper.classList.remove('has-memo');
-            }
-        }
-
         // 앱 시작 시 이전 폴더 핸들 복구 시도
         window.addEventListener('DOMContentLoaded', async () => {
             await loadSettings();
@@ -295,7 +268,6 @@
                     btnFolder.classList.add('bg-amber-100', 'text-amber-800');
                 }
             }
-            updateMemoLayoutState();
         });
 
         // 지정 폴더 내 settings.json에 설정 저장
@@ -392,7 +364,7 @@
             contentWrapper.className = 'w-full min-h-full flex flex-col mx-auto transition-all duration-300';
             
             if (marginMode === 0) { // 없음
-                contentWrapper.classList.add('max-w-none', 'px-6', 'margin-none');
+                contentWrapper.classList.add('max-w-none', 'px-6');
                 btnMargin.innerText = '여백: 없음';
             } else if (marginMode === 1) { // 좁음
                 contentWrapper.classList.add('max-w-5xl', 'px-8');
@@ -404,7 +376,6 @@
                 contentWrapper.classList.add('max-w-xl', 'px-6');
                 btnMargin.innerText = '여백: 넓음';
             }
-            updateMemoLayoutState();
         }
 
         // 여백 버튼 클릭 시 4가지 모드 순환
@@ -473,7 +444,6 @@
                 fileNameInput.value = cleanName;
                 fileTitleDisplay.innerText = cleanName;
                 updateCharCount();
-                updateMemoLayoutState();
             } catch (err) {
                 alert('파일 읽기 실패: ' + err.message);
             }
@@ -534,7 +504,6 @@
         editor.addEventListener('input', () => {
             updateCharCount();
             ensureCursorVisible();
-            updateMemoLayoutState();
             autoSaveStatus.innerText = '저장 중...';
             if (autoSaveTimer) clearTimeout(autoSaveTimer);
             autoSaveTimer = setTimeout(() => { executeAutoSave(); }, 1000);
@@ -776,13 +745,11 @@
                 }
             }
 
-            // 더블클릭이나 삼중클릭인 경우 (시작과 끝이 같은 문단 안인 경우) 해당 문단만 정확히 타겟팅
             let anchorBlock = getParentBlock(selection.anchorNode);
             let focusBlock = getParentBlock(selection.focusNode);
             if (anchorBlock && focusBlock && anchorBlock === focusBlock) {
                 targetBlocks.add(anchorBlock);
             } else {
-                // 드래그 등으로 여러 문단이 걸친 경우 정밀 인터섹션 판정
                 blocks.forEach(block => {
                     const blockRange = document.createRange();
                     blockRange.selectNodeContents(block);
@@ -791,7 +758,6 @@
                     const endsAfterStart = range.compareBoundaryPoints(Range.END_TO_START, blockRange) < 0;
                     
                     if (startsBeforeEnd && endsAfterStart) {
-                        // 다음 문단의 맨 앞(offset 0)으로 범위가 튀는 현상 방지
                         if (range.endContainer === block && range.endOffset === 0) return;
                         if (range.endContainer.nodeType === Node.TEXT_NODE && range.endContainer.parentNode === block && range.endOffset === 0) return;
                         
@@ -879,7 +845,7 @@
             currentBlock = null;
         });
 
-        // 우클릭 메뉴: 메모 추가/삭제 토글
+        // 우클릭 메뉴: 메모 추가/삭제 토글 (추가 시 자동 커서 포커스)
         document.getElementById('menu-memo-toggle-btn').addEventListener('click', () => {
             if (currentBlock) {
                 const existingMemo = currentBlock.querySelector('.para-memo');
@@ -891,9 +857,9 @@
                     memoDiv.setAttribute('contenteditable', 'true');
                     memoDiv.setAttribute('spellcheck', 'false');
                     currentBlock.appendChild(memoDiv);
+                    memoDiv.focus(); // 메모 추가 시 자동으로 커서가 메모박스 안에 놓이도록 설정
                 }
                 updateCharCount();
-                updateMemoLayoutState();
                 executeAutoSave();
             }
             contextMenu.style.display = 'none';
