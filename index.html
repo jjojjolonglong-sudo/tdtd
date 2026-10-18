@@ -17,15 +17,33 @@
             position: relative;
             user-select: text;
         }
-        /* 메모 박스 스타일 (잠긴 문단보다 옅은 음영, 테두리 없음) */
+        
+        /* 한글 스타일 우측 여백 메모 구조 */
+        .paragraph-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 2rem;
+            position: relative;
+            margin-right: -240px; /* 우측 여백 공간 확장 */
+            transition: margin-right 0.3s;
+        }
+        .para-text {
+            flex: 1;
+            min-width: 0;
+        }
         .para-memo {
-            background-color: #f9fafb;
-            text-align: justify;
-            text-indent: 0 !important;
-            font-family: inherit;
-            line-height: inherit;
+            width: 220px;
+            flex-shrink: 0;
+            background-color: #f1f3f5;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            line-height: 1.4;
             border: none;
             outline: none;
+            position: relative;
+            text-align: left;
+            text-indent: 0 !important;
         }
         .para-memo:empty:before {
             content: "메모 입력...";
@@ -33,18 +51,15 @@
             pointer-events: none;
             display: block;
         }
-        /* 문단 첫줄과 메모를 잇는 연결선 */
-        .paragraph-row {
-            position: relative;
-        }
+        /* 메모와 본문 문단을 잇는 연결선 */
         .para-memo::before {
             content: "";
             position: absolute;
-            left: -1.5rem;
-            top: 1em;
-            width: 1.5rem;
+            left: -1rem;
+            top: 1rem;
+            width: 1rem;
             height: 1px;
-            background-color: #d1d5db;
+            background-color: #cbd5e1;
         }
 
         /* 우클릭 커스텀 메뉴 스타일 */
@@ -88,7 +103,7 @@
         .font-batang { font-family: 'Batang', '바탕', serif; }
 
         /* 들여쓰기 (1em) */
-        .indent-on p, .indent-on div {
+        .indent-on p, .indent-on div, .indent-on .para-text {
             text-indent: 1em;
         }
 
@@ -98,8 +113,8 @@
         .leading-loose-custom { line-height: 2.0; }
 
         /* 문단 간격 */
-        .para-spacing-on p, .para-spacing-on div, .paragraph-row { margin-bottom: 1em; }
-        .para-spacing-off p, .para-spacing-off div, .paragraph-row { margin-bottom: 0; }
+        .para-spacing-on p, .para-spacing-on div, .para-spacing-on .paragraph-row { margin-bottom: 1em; }
+        .para-spacing-off p, .para-spacing-off div, .para-spacing-off .paragraph-row { margin-bottom: 0; }
     </style>
 </head>
 <body class="bg-white text-gray-900 h-screen flex flex-col m-0 overflow-hidden">
@@ -167,10 +182,10 @@
             </div>
         </header>
 
-        <!-- 본문 영역 스크롤바 -->
+        <!-- 본문 영역 스크롤바 (우측 메모가 잘리지 않도록 좌우 패딩 확보) -->
         <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
-            <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
-                <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
+            <div id="content-wrapper" class="max-w-3xl mx-auto px-16 py-12 w-full min-h-full flex flex-col">
+                <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh; padding-right: 240px;"></div>
             </div>
         </main>
 
@@ -361,16 +376,16 @@
             contentWrapper.className = 'w-full min-h-full flex flex-col mx-auto transition-all duration-300';
             
             if (marginMode === 0) { // 없음
-                contentWrapper.classList.add('max-w-none', 'px-4');
+                contentWrapper.classList.add('max-w-none', 'px-12');
                 btnMargin.innerText = '여백: 없음';
             } else if (marginMode === 1) { // 좁음
-                contentWrapper.classList.add('max-w-5xl', 'px-8');
+                contentWrapper.classList.add('max-w-5xl', 'px-16');
                 btnMargin.innerText = '여백: 좁음';
             } else if (marginMode === 2) { // 중간
-                contentWrapper.classList.add('max-w-3xl', 'px-6');
+                contentWrapper.classList.add('max-w-3xl', 'px-16');
                 btnMargin.innerText = '여백: 중간';
             } else if (marginMode === 3) { // 넓음
-                contentWrapper.classList.add('max-w-xl', 'px-4');
+                contentWrapper.classList.add('max-w-xl', 'px-12');
                 btnMargin.innerText = '여백: 넓음';
             }
         }
@@ -562,7 +577,7 @@
             alert('저장되었습니다.');
         });
 
-        // TXT 내보내기 버튼 (연결된 폴더가 있으면 해당 경로에 직접 저장, 없으면 브라우저 다운로드)
+        // TXT 내보내기 버튼 (메모 제외 및 줄바꿈 유지)
         document.getElementById('btn-export-txt').addEventListener('click', async () => {
             const rawName = fileNameInput.value.trim() || 'untitled';
             const fileName = rawName.replace(/\.md$/, '') + '.txt';
@@ -627,6 +642,7 @@
                 const range = selection.getRangeAt(0);
                 const div = document.createElement('div');
                 div.appendChild(range.cloneContents());
+                div.querySelectorAll('.para-memo').forEach(m => m.remove());
 
                 function getCleanText(node) {
                     let result = '';
@@ -722,7 +738,7 @@
 
             const range = selection.getRangeAt(0);
             
-            let blocks = Array.from(editor.querySelectorAll('p, div, .para-text')).filter(el => editor.contains(el) && el.parentElement === editor || el.classList.contains('para-text'));
+            let blocks = Array.from(editor.querySelectorAll('p, div, .para-text')).filter(el => editor.contains(el) && (el.parentElement === editor || el.classList.contains('para-text') || el.classList.contains('paragraph-row')));
             if (blocks.length === 0) {
                 if (editor.innerHTML.trim() !== '') {
                     editor.innerHTML = `<div>${editor.innerHTML}</div>`;
@@ -750,11 +766,11 @@
                 let endBlock = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode;
 
                 while (startBlock && startBlock !== editor) {
-                    if (startBlock.parentElement === editor || startBlock.classList.contains('para-text')) break;
+                    if (startBlock.parentElement === editor || startBlock.classList.contains('para-text') || startBlock.classList.contains('paragraph-row')) break;
                     startBlock = startBlock.parentElement;
                 }
                 while (endBlock && endBlock !== editor) {
-                    if (endBlock.parentElement === editor || endBlock.classList.contains('para-text')) break;
+                    if (endBlock.parentElement === editor || endBlock.classList.contains('para-text') || endBlock.classList.contains('paragraph-row')) break;
                     endBlock = endBlock.parentElement;
                 }
 
@@ -764,8 +780,10 @@
 
             targetBlocks.forEach(block => {
                 let target = block.classList.contains('paragraph-row') ? block.querySelector('.para-text') : block;
-                target.setAttribute('contenteditable', 'false');
-                target.classList.add('locked-paragraph');
+                if (target) {
+                    target.setAttribute('contenteditable', 'false');
+                    target.classList.add('locked-paragraph');
+                }
             });
 
             window.getSelection().removeAllRanges();
@@ -800,13 +818,13 @@
         // 우클릭 시 컨텍스트 메뉴 표시 (잠금/해제 및 메모 추가/삭제 통합)
         editor.addEventListener('contextmenu', (e) => {
             const block = e.target.closest('p, div, .paragraph-row');
-            if (block && editor.contains(block)) {
+            if (block && editor.contains(block) && !e.target.classList.contains('para-memo')) {
                 e.preventDefault();
-                currentBlock = block;
+                currentBlock = block.classList.contains('paragraph-row') ? block : block.closest('.paragraph-row') || block;
                 
-                const textTarget = block.classList.contains('paragraph-row') ? block.querySelector('.para-text') : block;
+                const textTarget = currentBlock.classList.contains('paragraph-row') ? currentBlock.querySelector('.para-text') : currentBlock;
                 const isLocked = textTarget.classList.contains('locked-paragraph') || textTarget.getAttribute('contenteditable') === 'false';
-                const hasMemo = block.classList.contains('paragraph-row') || block.querySelector('.para-memo') !== null;
+                const hasMemo = currentBlock.classList.contains('paragraph-row');
 
                 document.getElementById('menu-lock-toggle-btn').innerText = isLocked ? '🔓 잠금 해제' : '🔒 문단 잠금';
                 document.getElementById('menu-memo-toggle-btn').innerText = hasMemo ? '🗑️ 메모 삭제' : '📝 메모 추가';
@@ -848,7 +866,7 @@
         // 우클릭 메뉴: 메모 추가/삭제 토글
         document.getElementById('menu-memo-toggle-btn').addEventListener('click', () => {
             if (currentBlock) {
-                const row = currentBlock.closest('.paragraph-row');
+                const row = currentBlock.classList.contains('paragraph-row') ? currentBlock : currentBlock.closest('.paragraph-row');
                 if (row) {
                     // 메모 삭제 및 본문 복원
                     const textPart = row.querySelector('.para-text');
@@ -858,14 +876,14 @@
                     }
                     row.remove();
                 } else {
-                    // 메모 추가 (flex row 구조로 변환)
+                    // 메모 추가 (우측 여백 메모 구조로 변환)
                     const isLocked = currentBlock.classList.contains('locked-paragraph') || currentBlock.getAttribute('contenteditable') === 'false';
                     
                     const rowDiv = document.createElement('div');
-                    rowDiv.className = 'paragraph-row flex items-start gap-6 relative';
+                    rowDiv.className = 'paragraph-row';
                     
                     const textDiv = document.createElement('div');
-                    textDiv.className = 'para-text flex-1 outline-none';
+                    textDiv.className = 'para-text outline-none';
                     if (!isLocked) textDiv.setAttribute('contenteditable', 'true');
                     textDiv.innerHTML = currentBlock.innerHTML;
                     if (isLocked) {
@@ -874,8 +892,9 @@
                     }
                     
                     const memoDiv = document.createElement('div');
-                    memoDiv.className = 'para-memo w-[45%] flex-shrink-0 p-2 rounded outline-none relative';
+                    memoDiv.className = 'para-memo';
                     memoDiv.setAttribute('contenteditable', 'true');
+                    memoDiv.setAttribute('spellcheck', 'false');
                     
                     rowDiv.appendChild(textDiv);
                     rowDiv.appendChild(memoDiv);
