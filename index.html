@@ -22,14 +22,14 @@
             position: relative;
         }
 
-        /* 한글 스타일 우측 여백 메모 박스 (테두리 없음, 옅은 음영) */
+        /* 한글 스타일 우측 여백 메모 박스 (테두리 없음, 옅은 음영, 300px 넉넉한 너비) */
         .para-memo {
             position: absolute;
             left: calc(100% + 1.5rem);
             top: 0;
-            width: 220px;
+            width: 300px;
             background-color: #f1f3f5;
-            padding: 6px 10px;
+            padding: 8px 12px;
             border-radius: 4px;
             font-size: 0.85rem;
             line-height: 1.4;
@@ -56,12 +56,15 @@
             background-color: #cbd5e1;
         }
 
-        /* 메모가 존재할 때 본문 영역 우측 여백 자동 확장 */
-        #content-wrapper {
-            transition: padding-right 0.3s;
+        /* 창이 좁거나 여백이 없을 때만 우측 메모 공간 확보 */
+        @media (max-width: 1280px) {
+            #content-wrapper.has-memo {
+                padding-right: 340px !important;
+            }
         }
-        #content-wrapper.has-memo-space {
-            padding-right: 260px !important;
+        /* 여백 없음 모드일 때 메모가 있으면 우측 여백 자동 확보 */
+        #content-wrapper.margin-none.has-memo {
+            padding-right: 340px !important;
         }
 
         /* 우클릭 커스텀 메뉴 스타일 */
@@ -186,7 +189,7 @@
 
         <!-- 본문 영역 스크롤바 -->
         <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
-            <div id="content-wrapper" class="max-w-3xl mx-auto px-16 py-12 w-full min-h-full flex flex-col">
+            <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
                 <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
             </div>
         </main>
@@ -264,13 +267,13 @@
             }
         }
 
-        // 메모 존재 여부에 따라 본문 우측 여백 공간 동적 조절
+        // 메모 존재 여부에 따라 본문 레이아웃 상태 동적 조절
         function updateMemoLayoutState() {
             const hasMemos = editor.querySelectorAll('.para-memo').length > 0;
             if (hasMemos) {
-                contentWrapper.classList.add('has-memo-space');
+                contentWrapper.classList.add('has-memo');
             } else {
-                contentWrapper.classList.remove('has-memo-space');
+                contentWrapper.classList.remove('has-memo');
             }
         }
 
@@ -389,16 +392,16 @@
             contentWrapper.className = 'w-full min-h-full flex flex-col mx-auto transition-all duration-300';
             
             if (marginMode === 0) { // 없음
-                contentWrapper.classList.add('max-w-none', 'px-12');
+                contentWrapper.classList.add('max-w-none', 'px-6', 'margin-none');
                 btnMargin.innerText = '여백: 없음';
             } else if (marginMode === 1) { // 좁음
-                contentWrapper.classList.add('max-w-5xl', 'px-16');
+                contentWrapper.classList.add('max-w-5xl', 'px-8');
                 btnMargin.innerText = '여백: 좁음';
             } else if (marginMode === 2) { // 중간
-                contentWrapper.classList.add('max-w-3xl', 'px-16');
+                contentWrapper.classList.add('max-w-3xl', 'px-6');
                 btnMargin.innerText = '여백: 중간';
             } else if (marginMode === 3) { // 넓음
-                contentWrapper.classList.add('max-w-xl', 'px-12');
+                contentWrapper.classList.add('max-w-xl', 'px-6');
                 btnMargin.innerText = '여백: 넓음';
             }
             updateMemoLayoutState();
@@ -744,15 +747,26 @@
             saveSettings();
         });
 
-        // 문단 단위 잠금 처리 (선택 영역 - 더블클릭 등 오동작 방지 정밀 보정)
+        // 헬퍼: 노드가 속한 문단 블록 찾기
+        function getParentBlock(node) {
+            if (!node) return null;
+            let block = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+            while (block && block.parentElement !== editor && block !== editor) {
+                block = block.parentElement;
+            }
+            return (block && block !== editor && editor.contains(block)) ? block : null;
+        }
+
+        // 문단 단위 잠금 처리 (더블클릭/삼중클릭 버그 완벽 해결 버전)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
-                alert('잠글 문단 영역을 드래그하여 선택해주세요.');
+                alert('잠글 문단 영역을 드래그하거나 선택해주세요.');
                 return;
             }
 
             const range = selection.getRangeAt(0);
+            let targetBlocks = new Set();
             
             let blocks = Array.from(editor.querySelectorAll(':scope > p, :scope > div'));
             if (blocks.length === 0) {
@@ -762,32 +776,32 @@
                 }
             }
 
-            let targetBlocks = [];
-            blocks.forEach(block => {
-                const blockRange = document.createRange();
-                blockRange.selectNodeContents(block);
-                
-                const startsBeforeEnd = range.compareBoundaryPoints(Range.START_TO_END, blockRange) > 0;
-                const endsAfterStart = range.compareBoundaryPoints(Range.END_TO_START, blockRange) < 0;
-                
-                if (startsBeforeEnd && endsAfterStart) {
-                    // 더블클릭 등으로 인해 다음 문단의 맨 앞(offset 0)에서 끝나는 경우 제외
-                    if (range.endContainer === block && range.endOffset === 0) return;
-                    if (range.endContainer.nodeType === Node.TEXT_NODE && range.endContainer.parentNode === block && range.endOffset === 0) return;
+            // 더블클릭이나 삼중클릭인 경우 (시작과 끝이 같은 문단 안인 경우) 해당 문단만 정확히 타겟팅
+            let anchorBlock = getParentBlock(selection.anchorNode);
+            let focusBlock = getParentBlock(selection.focusNode);
+            if (anchorBlock && focusBlock && anchorBlock === focusBlock) {
+                targetBlocks.add(anchorBlock);
+            } else {
+                // 드래그 등으로 여러 문단이 걸친 경우 정밀 인터섹션 판정
+                blocks.forEach(block => {
+                    const blockRange = document.createRange();
+                    blockRange.selectNodeContents(block);
                     
-                    targetBlocks.push(block);
-                }
-            });
+                    const startsBeforeEnd = range.compareBoundaryPoints(Range.START_TO_END, blockRange) > 0;
+                    const endsAfterStart = range.compareBoundaryPoints(Range.END_TO_START, blockRange) < 0;
+                    
+                    if (startsBeforeEnd && endsAfterStart) {
+                        // 다음 문단의 맨 앞(offset 0)으로 범위가 튀는 현상 방지
+                        if (range.endContainer === block && range.endOffset === 0) return;
+                        if (range.endContainer.nodeType === Node.TEXT_NODE && range.endContainer.parentNode === block && range.endOffset === 0) return;
+                        
+                        targetBlocks.add(block);
+                    }
+                });
+            }
 
-            if (targetBlocks.length === 0) {
-                let node = range.startContainer;
-                let block = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-                while (block && block.parentElement !== editor && block !== editor) {
-                    block = block.parentElement;
-                }
-                if (block && block !== editor && editor.contains(block)) {
-                    targetBlocks.push(block);
-                }
+            if (targetBlocks.size === 0 && anchorBlock) {
+                targetBlocks.add(anchorBlock);
             }
 
             targetBlocks.forEach(block => {
@@ -821,8 +835,8 @@
 
         // 우클릭 시 컨텍스트 메뉴 표시 (잠금/해제 및 메모 추가/삭제)
         editor.addEventListener('contextmenu', (e) => {
-            const block = e.target.closest(':scope > p, :scope > div') || e.target.closest('#editor p, #editor div');
-            if (block && editor.contains(block) && !e.target.classList.contains('para-memo')) {
+            const block = getParentBlock(e.target);
+            if (block && !e.target.classList.contains('para-memo')) {
                 e.preventDefault();
                 currentBlock = block;
                 
