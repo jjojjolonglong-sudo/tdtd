@@ -22,6 +22,11 @@
             position: relative;
         }
 
+        /* 메모가 있는 문단에 충분한 최소 높이를 주어 겹침 및 여백 방지 */
+        #editor p.has-memo, #editor div.has-memo {
+            min-height: 4.5rem;
+        }
+
         /* 우측 여백 메모 박스 (span 태그 기반, 300px 넉넉한 너비, 첫줄 나란히 정렬) */
         .para-memo {
             position: absolute;
@@ -727,7 +732,33 @@
             return (block && block !== editor && editor.contains(block)) ? block : null;
         }
 
-        // 문단 단위 잠금 처리 (더블클릭/삼중클릭 버그 완벽 해결 버전)
+        // 선택 영역 정밀 보정 헬퍼 (더블클릭/삼중클릭 시 다음 문단 시작점으로 오버플로우되는 현상 방지)
+        function getNormalizedSelectionRange() {
+            const selection = window.getSelection();
+            if (!selection.rangeCount || selection.isCollapsed) return null;
+            let range = selection.getRangeAt(0).cloneRange();
+
+            if (range.endOffset === 0 && !range.collapsed) {
+                let container = range.endContainer;
+                try {
+                    if (container.nodeType === Node.TEXT_NODE) {
+                        if (container.previousSibling) {
+                            range.setEndAfter(container.previousSibling);
+                        } else if (container.parentNode && container.parentNode !== editor) {
+                            range.setEndBefore(container.parentNode);
+                        }
+                    } else if (container.nodeType === Node.ELEMENT_NODE) {
+                        let prev = container.previousElementSibling || container.previousSibling;
+                        if (prev) {
+                            range.setEndAfter(prev);
+                        }
+                    }
+                } catch (e) {}
+            }
+            return range;
+        }
+
+        // 문단 단위 잠금 처리 (드래그 포함 영역 전체 잠금 + 오버플로우 버그 해결)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
@@ -735,7 +766,9 @@
                 return;
             }
 
-            const range = selection.getRangeAt(0);
+            const range = getNormalizedSelectionRange();
+            if (!range) return;
+
             let targetBlocks = new Set();
             
             let blocks = Array.from(editor.querySelectorAll(':scope > p, :scope > div'));
@@ -846,18 +879,20 @@
             currentBlock = null;
         });
 
-        // 우클릭 메뉴: 메모 추가/삭제 토글 (span 태그 기반, 자동 커서 포커스)
+        // 우클릭 메뉴: 메모 추가/삭제 토글 (span 태그 기반, 자동 커서 포커스 및 .has-memo 여백 관리)
         document.getElementById('menu-memo-toggle-btn').addEventListener('click', () => {
             if (currentBlock) {
                 const existingMemo = currentBlock.querySelector('.para-memo');
                 if (existingMemo) {
                     existingMemo.remove();
+                    currentBlock.classList.remove('has-memo');
                 } else {
                     const memoSpan = document.createElement('span');
                     memoSpan.className = 'para-memo';
                     memoSpan.setAttribute('contenteditable', 'true');
                     memoSpan.setAttribute('spellcheck', 'false');
                     currentBlock.appendChild(memoSpan);
+                    currentBlock.classList.add('has-memo');
                     memoSpan.focus();
                 }
                 updateCharCount();
