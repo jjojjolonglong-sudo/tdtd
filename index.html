@@ -22,7 +22,7 @@
             position: relative;
         }
 
-        /* 우측 여백 메모 박스 (테두리 없음, 옅은 음영, 300px 넉넉한 너비, 첫줄 나란히 정렬) */
+        /* 우측 여백 메모 박스 (span 태그 기반, 300px 넉넉한 너비, 첫줄 나란히 정렬) */
         .para-memo {
             position: absolute;
             left: calc(100% + 1.5rem);
@@ -38,6 +38,7 @@
             text-align: left;
             text-indent: 0 !important;
             z-index: 10;
+            display: inline-block;
         }
         /* 문단 첫 줄과 메모를 잇는 연결선 */
         .para-memo::before {
@@ -790,7 +791,7 @@
                 return;
             }
             lockedBlocks.forEach(block => {
-                if (block.classList.contains('para-memo')) return; // 메모는 제외
+                if (block.classList.contains('para-memo')) return;
                 block.removeAttribute('contenteditable');
                 block.classList.remove('locked-paragraph');
             });
@@ -845,19 +846,19 @@
             currentBlock = null;
         });
 
-        // 우클릭 메뉴: 메모 추가/삭제 토글 (추가 시 자동 커서 포커스)
+        // 우클릭 메뉴: 메모 추가/삭제 토글 (span 태그 기반, 자동 커서 포커스)
         document.getElementById('menu-memo-toggle-btn').addEventListener('click', () => {
             if (currentBlock) {
                 const existingMemo = currentBlock.querySelector('.para-memo');
                 if (existingMemo) {
                     existingMemo.remove();
                 } else {
-                    const memoDiv = document.createElement('div');
-                    memoDiv.className = 'para-memo';
-                    memoDiv.setAttribute('contenteditable', 'true');
-                    memoDiv.setAttribute('spellcheck', 'false');
-                    currentBlock.appendChild(memoDiv);
-                    memoDiv.focus(); // 메모 추가 시 자동으로 커서가 메모박스 안에 놓이도록 설정
+                    const memoSpan = document.createElement('span');
+                    memoSpan.className = 'para-memo';
+                    memoSpan.setAttribute('contenteditable', 'true');
+                    memoSpan.setAttribute('spellcheck', 'false');
+                    currentBlock.appendChild(memoSpan);
+                    memoSpan.focus();
                 }
                 updateCharCount();
                 executeAutoSave();
