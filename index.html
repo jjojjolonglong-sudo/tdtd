@@ -519,6 +519,22 @@
             if (e.key === 'Enter') {
                 setTimeout(ensureCursorVisible, 10);
             }
+
+            // 메모 박스 내부에서 Ctrl+A를 누를 경우 해당 메모박스 안의 텍스트만 선택되도록 처리
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    let node = selection.anchorNode;
+                    let memoBox = node.nodeType === Node.TEXT_NODE ? node.parentElement.closest('.para-memo') : node.closest('.para-memo');
+                    if (memoBox) {
+                        e.preventDefault(); // 전체 에디터가 선택되는 기본 동작 방지
+                        const range = document.createRange();
+                        range.selectNodeContents(memoBox);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }
+                }
+            }
         });
 
         // 파일 제목 수정 후 엔터 시 고정 모드 전환
