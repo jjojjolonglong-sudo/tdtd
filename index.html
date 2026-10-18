@@ -17,7 +17,7 @@
             user-select: text;
         }
         
-        /* 문단별 기본 설정 (상대 좌표 기준) */
+        /* 문단별 상대 좌표 설정 (메모 기준점) */
         #editor p, #editor div {
             position: relative;
         }
@@ -115,8 +115,8 @@
         .leading-loose-custom { line-height: 2.0; }
 
         /* 문단 간격 */
-        .para-spacing-on p, .para-spacing-on div { margin-bottom: 1em; }
-        .para-spacing-off p, .para-spacing-off div { margin-bottom: 0; }
+        .para-spacing-on > p, .para-spacing-on > div { margin-bottom: 1em; }
+        .para-spacing-off > p, .para-spacing-off > div { margin-bottom: 0; }
     </style>
 </head>
 <body class="bg-white text-gray-900 h-screen flex flex-col m-0 overflow-hidden">
@@ -744,7 +744,7 @@
             saveSettings();
         });
 
-        // 문단 단위 잠금 처리 (선택 영역)
+        // 문단 단위 잠금 처리 (선택 영역 - 직계 자식 문단만 안전하게 타겟팅)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
@@ -754,11 +754,11 @@
 
             const range = selection.getRangeAt(0);
             
-            let blocks = Array.from(editor.querySelectorAll('p, div')).filter(el => el.parentElement === editor);
+            let blocks = Array.from(editor.querySelectorAll(':scope > p, :scope > div'));
             if (blocks.length === 0) {
                 if (editor.innerHTML.trim() !== '') {
                     editor.innerHTML = `<div>${editor.innerHTML}</div>`;
-                    blocks = Array.from(editor.querySelectorAll('p, div')).filter(el => el.parentElement === editor);
+                    blocks = Array.from(editor.querySelectorAll(':scope > p, :scope > div'));
                 }
             }
 
@@ -776,21 +776,21 @@
             });
 
             if (targetBlocks.length === 0) {
-                let startNode = range.startContainer;
-                let endNode = range.endContainer;
-                let startBlock = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode;
-                let endBlock = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode;
-
-                while (startBlock && startBlock.parentElement !== editor && startBlock !== editor) startBlock = startBlock.parentElement;
-                while (endBlock && endBlock.parentElement !== editor && endBlock !== editor) endBlock = endBlock.parentElement;
-
-                if (startBlock && startBlock !== editor) targetBlocks.push(startBlock);
-                if (endBlock && endBlock !== editor && endBlock !== startBlock) targetBlocks.push(endBlock);
+                let node = range.startContainer;
+                let block = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+                while (block && block.parentElement !== editor && block !== editor) {
+                    block = block.parentElement;
+                }
+                if (block && block !== editor && editor.contains(block)) {
+                    targetBlocks.push(block);
+                }
             }
 
             targetBlocks.forEach(block => {
-                block.setAttribute('contenteditable', 'false');
-                block.classList.add('locked-paragraph');
+                if (block !== editor) {
+                    block.setAttribute('contenteditable', 'false');
+                    block.classList.add('locked-paragraph');
+                }
             });
 
             window.getSelection().removeAllRanges();
@@ -806,7 +806,7 @@
                 return;
             }
             lockedBlocks.forEach(block => {
-                if(block.classList.contains('para-memo')) return; // 메모는 제외
+                if (block.classList.contains('para-memo')) return; // 메모는 제외
                 block.removeAttribute('contenteditable');
                 block.classList.remove('locked-paragraph');
             });
@@ -817,19 +817,13 @@
 
         // 우클릭 시 컨텍스트 메뉴 표시 (잠금/해제 및 메모 추가/삭제)
         editor.addEventListener('contextmenu', (e) => {
-            const block = e.target.closest('p, div');
+            const block = e.target.closest(':scope > p, :scope > div') || e.target.closest('#editor p, #editor div');
             if (block && editor.contains(block) && !e.target.classList.contains('para-memo')) {
                 e.preventDefault();
-                let targetBlock = block;
-                while (targetBlock && targetBlock.parentElement !== editor && targetBlock !== editor) {
-                    targetBlock = targetBlock.parentElement;
-                }
-                if (!targetBlock || targetBlock === editor) targetBlock = block;
-
-                currentBlock = targetBlock;
+                currentBlock = block;
                 
-                const isLocked = targetBlock.classList.contains('locked-paragraph') || targetBlock.getAttribute('contenteditable') === 'false';
-                const hasMemo = targetBlock.querySelector('.para-memo') !== null;
+                const isLocked = block.classList.contains('locked-paragraph') || block.getAttribute('contenteditable') === 'false';
+                const hasMemo = block.querySelector('.para-memo') !== null;
 
                 document.getElementById('menu-lock-toggle-btn').innerText = isLocked ? '🔓 잠금 해제' : '🔒 문단 잠금';
                 document.getElementById('menu-memo-toggle-btn').innerText = hasMemo ? '🗑️ 메모 삭제' : '📝 메모 추가';
