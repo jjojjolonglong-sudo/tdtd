@@ -9,7 +9,7 @@
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        /* 문단 잠금: 상하 띠 제거, 본문 상 위치 유지, 전체 텍스트 뒤에 회색 배경음영 적용 */
+        /* 문단 잠금: 본문 상 위치 유지, 전체 텍스트 뒤에 회색 배경음영 적용 */
         .locked-paragraph {
             background-color: #e5e7eb;
             padding: 2px 6px;
@@ -17,6 +17,36 @@
             position: relative;
             user-select: text;
         }
+        /* 메모 박스 스타일 (잠긴 문단보다 옅은 음영, 테두리 없음) */
+        .para-memo {
+            background-color: #f9fafb;
+            text-align: justify;
+            text-indent: 0 !important;
+            font-family: inherit;
+            line-height: inherit;
+            border: none;
+            outline: none;
+        }
+        .para-memo:empty:before {
+            content: "메모 입력...";
+            color: #9ca3af;
+            pointer-events: none;
+            display: block;
+        }
+        /* 문단 첫줄과 메모를 잇는 연결선 */
+        .paragraph-row {
+            position: relative;
+        }
+        .para-memo::before {
+            content: "";
+            position: absolute;
+            left: -1.5rem;
+            top: 1em;
+            width: 1.5rem;
+            height: 1px;
+            background-color: #d1d5db;
+        }
+
         /* 우클릭 커스텀 메뉴 스타일 */
         #context-menu, #title-context-menu {
             display: none;
@@ -68,15 +98,16 @@
         .leading-loose-custom { line-height: 2.0; }
 
         /* 문단 간격 */
-        .para-spacing-on p, .para-spacing-on div { margin-bottom: 1em; }
-        .para-spacing-off p, .para-spacing-off div { margin-bottom: 0; }
+        .para-spacing-on p, .para-spacing-on div, .paragraph-row { margin-bottom: 1em; }
+        .para-spacing-off p, .para-spacing-off div, .paragraph-row { margin-bottom: 0; }
     </style>
 </head>
 <body class="bg-white text-gray-900 h-screen flex flex-col m-0 overflow-hidden">
 
-    <!-- 우클릭 커스텀 메뉴 (문단 잠금 해제용) -->
+    <!-- 우클릭 커스텀 메뉴 (문단 잠금 및 메모 관리용) -->
     <div id="context-menu">
-        <button id="menu-unlock-btn">🔓 잠금 해제</button>
+        <button id="menu-lock-toggle-btn">🔒 문단 잠금</button>
+        <button id="menu-memo-toggle-btn">📝 메모 추가</button>
     </div>
 
     <!-- 파일 제목 우클릭 메뉴 -->
@@ -132,13 +163,13 @@
                 <button id="btn-margin" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">여백: 중간</button>
                 
                 <button id="btn-lock" class="px-2 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded font-medium">🔒 문단 잠금</button>
+                <button id="btn-unlock-all" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 font-medium">🔓 전체 잠금 해제</button>
             </div>
         </header>
 
         <!-- 본문 영역 스크롤바 -->
         <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
             <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
-                <!-- 에디터 하단에 충분한 패딩을 주어 문서 끝에서도 여유 공간 확보 -->
                 <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
             </div>
         </main>
@@ -168,7 +199,7 @@
         let isIndentOn = false;
         let isParaOn = false;
         let autoSaveTimer = null;
-        let currentLockedBlock = null;
+        let currentBlock = null;
 
         // IndexedDB를 이용한 디렉토리 핸들 저장/조회
         const DB_NAME = 'TdtdAppDB';
@@ -415,15 +446,18 @@
             }
         });
 
-        // 글자수 표기
+        // 글자수 표기 (메모 영역 제외하고 본문 텍스트만 계산)
         function updateCharCount() {
-            const text = editor.innerText || '';
-            const withSpaces = text.length;
-            const withoutSpaces = text.replace(/\s/g, '').length;
+            const clone = editor.cloneNode(true);
+            clone.querySelectorAll('.para-memo').forEach(m => m.remove());
+            const text = clone.innerText || '';
+            const cleanText = text.trim();
+            const withSpaces = cleanText.length;
+            const withoutSpaces = cleanText.replace(/\s/g, '').length;
             charCountSpan.innerText = `글자수 ${withSpaces.toLocaleString()} (${withoutSpaces.toLocaleString()})`;
         }
 
-        // 커서 위치가 화면 하단에 가려지지 않도록 스크롤을 자동으로 위로 밀어 올리는 함수 (5줄 여유 유지)
+        // 커서 위치가 화면 하단에 가려지지 않도록 스크롤 자동 보정 (5줄 여유 유지)
         function ensureCursorVisible() {
             const selection = window.getSelection();
             if (!selection.rangeCount) return;
@@ -439,7 +473,7 @@
             }
 
             const containerRect = mainContainer.getBoundingClientRect();
-            const bottomThreshold = containerRect.bottom - 150; // 하단에서 약 5줄(150px) 여유 공간 보장
+            const bottomThreshold = containerRect.bottom - 150;
 
             if (rect.bottom > bottomThreshold) {
                 mainContainer.scrollTop += (rect.bottom - bottomThreshold);
@@ -466,7 +500,7 @@
 
         editor.addEventListener('input', () => {
             updateCharCount();
-            ensureCursorVisible(); // 타이핑 시 커서 위치가 하단에 파고들지 않도록 스크롤 조정
+            ensureCursorVisible();
             autoSaveStatus.innerText = '저장 중...';
             if (autoSaveTimer) clearTimeout(autoSaveTimer);
             autoSaveTimer = setTimeout(() => { executeAutoSave(); }, 1000);
@@ -474,7 +508,7 @@
 
         editor.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                setTimeout(ensureCursorVisible, 10); // 엔터 입력 시 커서 위치 바로 보정
+                setTimeout(ensureCursorVisible, 10);
             }
         });
 
@@ -535,6 +569,7 @@
 
             const div = document.createElement('div');
             div.innerHTML = editor.innerHTML;
+            div.querySelectorAll('.para-memo').forEach(m => m.remove());
 
             function getCleanText(node) {
                 let result = '';
@@ -560,7 +595,6 @@
 
             let cleanText = getCleanText(div).replace(/\n{3,}/g, '\n\n').trim();
 
-            // 연결된 폴더가 있는 경우 해당 경로에 직접 저장
             if (dirHandle) {
                 try {
                     const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
@@ -574,7 +608,6 @@
                 }
             }
 
-            // 폴더가 지정되지 않았거나 실패한 경우 기존 브라우저 다운로드 실행
             const blob = new Blob([cleanText], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -679,7 +712,7 @@
             saveSettings();
         });
 
-        // 문단 단위 잠금 처리
+        // 문단 단위 잠금 처리 (선택 영역)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
@@ -689,7 +722,7 @@
 
             const range = selection.getRangeAt(0);
             
-            let blocks = Array.from(editor.querySelectorAll('p, div')).filter(el => el.parentElement === editor);
+            let blocks = Array.from(editor.querySelectorAll('p, div, .para-text')).filter(el => editor.contains(el) && el.parentElement === editor || el.classList.contains('para-text'));
             if (blocks.length === 0) {
                 if (editor.innerHTML.trim() !== '') {
                     editor.innerHTML = `<div>${editor.innerHTML}</div>`;
@@ -716,23 +749,23 @@
                 let startBlock = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode;
                 let endBlock = endNode.nodeType === Node.TEXT_NODE ? endNode.parentElement : endNode;
 
-                while (startBlock && startBlock.parentElement !== editor && startBlock !== editor) startBlock = startBlock.parentElement;
-                while (endBlock && endBlock.parentElement !== editor && endBlock !== editor) endBlock = endBlock.parentElement;
+                while (startBlock && startBlock !== editor) {
+                    if (startBlock.parentElement === editor || startBlock.classList.contains('para-text')) break;
+                    startBlock = startBlock.parentElement;
+                }
+                while (endBlock && endBlock !== editor) {
+                    if (endBlock.parentElement === editor || endBlock.classList.contains('para-text')) break;
+                    endBlock = endBlock.parentElement;
+                }
 
                 if (startBlock && startBlock !== editor) targetBlocks.push(startBlock);
                 if (endBlock && endBlock !== editor && endBlock !== startBlock) targetBlocks.push(endBlock);
             }
 
-            if (targetBlocks.length === 0) {
-                let parent = range.commonAncestorContainer;
-                if (parent.nodeType === Node.TEXT_NODE) parent = parent.parentElement;
-                while (parent && parent.parentElement !== editor && parent !== editor) parent = parent.parentElement;
-                if (parent && parent !== editor) targetBlocks.push(parent);
-            }
-
             targetBlocks.forEach(block => {
-                block.setAttribute('contenteditable', 'false');
-                block.classList.add('locked-paragraph');
+                let target = block.classList.contains('paragraph-row') ? block.querySelector('.para-text') : block;
+                target.setAttribute('contenteditable', 'false');
+                target.classList.add('locked-paragraph');
             });
 
             window.getSelection().removeAllRanges();
@@ -740,12 +773,43 @@
             executeAutoSave();
         });
 
-        // 잠긴 문단 우클릭 시 컨텍스트 메뉴 표시
+        // 문단 잠금 일괄 해제 버튼
+        document.getElementById('btn-unlock-all').addEventListener('click', () => {
+            const lockedBlocks = editor.querySelectorAll('.locked-paragraph, [contenteditable="false"]');
+            if (lockedBlocks.length === 0) {
+                alert('잠긴 문단이 없습니다.');
+                return;
+            }
+            lockedBlocks.forEach(block => {
+                if(block.classList.contains('para-memo')) return; // 메모는 제외
+                block.removeAttribute('contenteditable');
+                block.classList.remove('locked-paragraph');
+            });
+            editor.querySelectorAll('.paragraph-row').forEach(row => {
+                const textPart = row.querySelector('.para-text');
+                if (textPart && textPart.getAttribute('contenteditable') === 'false') {
+                    textPart.removeAttribute('contenteditable');
+                    textPart.classList.remove('locked-paragraph');
+                }
+            });
+            updateCharCount();
+            executeAutoSave();
+            alert('모든 문단 잠금이 해제되었습니다.');
+        });
+
+        // 우클릭 시 컨텍스트 메뉴 표시 (잠금/해제 및 메모 추가/삭제 통합)
         editor.addEventListener('contextmenu', (e) => {
-            const lockedBlock = e.target.closest('.locked-paragraph');
-            if (lockedBlock) {
+            const block = e.target.closest('p, div, .paragraph-row');
+            if (block && editor.contains(block)) {
                 e.preventDefault();
-                currentLockedBlock = lockedBlock;
+                currentBlock = block;
+                
+                const textTarget = block.classList.contains('paragraph-row') ? block.querySelector('.para-text') : block;
+                const isLocked = textTarget.classList.contains('locked-paragraph') || textTarget.getAttribute('contenteditable') === 'false';
+                const hasMemo = block.classList.contains('paragraph-row') || block.querySelector('.para-memo') !== null;
+
+                document.getElementById('menu-lock-toggle-btn').innerText = isLocked ? '🔓 잠금 해제' : '🔒 문단 잠금';
+                document.getElementById('menu-memo-toggle-btn').innerText = hasMemo ? '🗑️ 메모 삭제' : '📝 메모 추가';
                 
                 contextMenu.style.display = 'block';
                 contextMenu.style.left = e.pageX + 'px';
@@ -761,16 +825,68 @@
             titleContextMenu.style.display = 'none';
         });
 
-        // 우클릭 메뉴에서 잠금 해제 실행
-        document.getElementById('menu-unlock-btn').addEventListener('click', () => {
-            if (currentLockedBlock) {
-                currentLockedBlock.removeAttribute('contenteditable');
-                currentLockedBlock.classList.remove('locked-paragraph');
+        // 우클릭 메뉴: 잠금/해제 토글
+        document.getElementById('menu-lock-toggle-btn').addEventListener('click', () => {
+            if (currentBlock) {
+                const textTarget = currentBlock.classList.contains('paragraph-row') ? currentBlock.querySelector('.para-text') : currentBlock;
+                const isLocked = textTarget.classList.contains('locked-paragraph') || textTarget.getAttribute('contenteditable') === 'false';
+                
+                if (isLocked) {
+                    textTarget.removeAttribute('contenteditable');
+                    textTarget.classList.remove('locked-paragraph');
+                } else {
+                    textTarget.setAttribute('contenteditable', 'false');
+                    textTarget.classList.add('locked-paragraph');
+                }
                 updateCharCount();
                 executeAutoSave();
             }
             contextMenu.style.display = 'none';
-            currentLockedBlock = null;
+            currentBlock = null;
+        });
+
+        // 우클릭 메뉴: 메모 추가/삭제 토글
+        document.getElementById('menu-memo-toggle-btn').addEventListener('click', () => {
+            if (currentBlock) {
+                const row = currentBlock.closest('.paragraph-row');
+                if (row) {
+                    // 메모 삭제 및 본문 복원
+                    const textPart = row.querySelector('.para-text');
+                    const parent = row.parentElement;
+                    while(textPart.firstChild) {
+                        parent.insertBefore(textPart.firstChild, row);
+                    }
+                    row.remove();
+                } else {
+                    // 메모 추가 (flex row 구조로 변환)
+                    const isLocked = currentBlock.classList.contains('locked-paragraph') || currentBlock.getAttribute('contenteditable') === 'false';
+                    
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'paragraph-row flex items-start gap-6 relative';
+                    
+                    const textDiv = document.createElement('div');
+                    textDiv.className = 'para-text flex-1 outline-none';
+                    if (!isLocked) textDiv.setAttribute('contenteditable', 'true');
+                    textDiv.innerHTML = currentBlock.innerHTML;
+                    if (isLocked) {
+                        textDiv.setAttribute('contenteditable', 'false');
+                        textDiv.classList.add('locked-paragraph');
+                    }
+                    
+                    const memoDiv = document.createElement('div');
+                    memoDiv.className = 'para-memo w-[45%] flex-shrink-0 p-2 rounded outline-none relative';
+                    memoDiv.setAttribute('contenteditable', 'true');
+                    
+                    rowDiv.appendChild(textDiv);
+                    rowDiv.appendChild(memoDiv);
+                    
+                    currentBlock.parentNode.replaceChild(rowDiv, currentBlock);
+                }
+                updateCharCount();
+                executeAutoSave();
+            }
+            contextMenu.style.display = 'none';
+            currentBlock = null;
         });
     </script>
 </body>
