@@ -113,6 +113,20 @@
 </head>
 <body class="bg-white text-gray-900 h-screen flex flex-col m-0 overflow-hidden">
 
+    <!-- 최초 접속 / 폴더 미연결 시 뜨는 게이트키퍼 화면 -->
+    <div id="gatekeeper-screen" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 text-center select-none">
+        <!-- 1단계 안내 -->
+        <div id="gate-step-1" class="max-w-md space-y-6">
+            <p class="text-base font-medium text-gray-800 leading-relaxed">원고를 안전하게 보관하기 위해 저장 폴더를 선택하신 뒤 권한을 허용해주세요.</p>
+            <button id="gate-btn-pick" class="px-5 py-2.5 bg-blue-600 text-white rounded font-medium text-sm hover:bg-blue-700 shadow-sm transition">저장 폴더 선택하기</button>
+        </div>
+        <!-- 2단계 안내 (폴더 지정 직후 1회 표출) -->
+        <div id="gate-step-2" class="max-w-md space-y-6 hidden">
+            <p class="text-base font-medium text-gray-800 leading-relaxed">브라우저 설정을 초기화하거나 쿠키 및 사이트 데이터를 삭제하면 폴더 연결 권한이 끊어질 수 있습니다. 폴더를 다시 연결하면 저장했던 원고들이 불러와집니다.</p>
+            <button id="gate-btn-start" class="px-5 py-2.5 bg-blue-600 text-white rounded font-medium text-sm hover:bg-blue-700 shadow-sm transition">확인 및 시작하기</button>
+        </div>
+    </div>
+
     <!-- 우클릭 커스텀 메뉴 (문단 잠금 및 메모 관리용) -->
     <div id="context-menu">
         <button id="menu-lock-toggle-btn">🔒 문단 잠금</button>
@@ -146,6 +160,8 @@
             </div>
 
             <div class="flex items-center gap-2 flex-wrap">
+                <button id="btn-toggle-pomo" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">뽀모 숨기기</button>
+                
                 <select id="select-font" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
                     <option value="system">기본 고딕</option>
                     <option value="gulim">굴림체</option>
@@ -176,12 +192,28 @@
             </div>
         </header>
 
-        <!-- 본문 영역 스크롤바 -->
-        <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
-            <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
-                <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
-            </div>
-        </main>
+        <!-- 메인 집필 화면 (왼쪽 여백 뽀모도로 + 중앙 본문 영역) -->
+        <div class="flex-1 flex overflow-hidden relative">
+            <!-- 왼쪽 여백 뽀모도로 타이머 패널 (선 없음, 하단에 최근 기록 5줄 배치) -->
+            <aside id="pomodoro-sidebar" class="w-64 bg-white p-4 flex flex-col justify-between text-xs select-none flex-shrink-0">
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2">
+                        <button id="pomo-control-btn" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 font-medium">시작</button>
+                        <span id="pomo-display" class="text-gray-700 font-medium">작업중 25:00</span>
+                    </div>
+                </div>
+                <div class="pt-4">
+                    <div id="pomo-logs" class="space-y-1 text-gray-500 text-[11px]"></div>
+                </div>
+            </aside>
+
+            <!-- 본문 영역 스크롤바 -->
+            <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
+                <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
+                    <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
+                </div>
+            </main>
+        </div>
 
         <!-- 하단 글자수 표기 바 (고정형) -->
         <footer class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-sm border-t border-gray-200 py-2 px-6 text-gray-500 text-xs select-none z-40 flex justify-end">
@@ -203,12 +235,25 @@
         const btnFolder = document.getElementById('btn-folder');
         const mainContainer = document.getElementById('main-container');
         
+        const gatekeeperScreen = document.getElementById('gatekeeper-screen');
+        const gateStep1 = document.getElementById('gate-step-1');
+        const gateStep2 = document.getElementById('gate-step-2');
+        const gateBtnPick = document.getElementById('gate-btn-pick');
+        const gateBtnStart = document.getElementById('gate-btn-start');
+
         let dirHandle = null;
         let marginMode = 2; // 0: 없음, 1: 좁음, 2: 중간, 3: 넓음
         let isIndentOn = false;
         let isParaOn = false;
         let autoSaveTimer = null;
         let currentBlock = null;
+
+        // 뽀모도로 관련 변수
+        let pomoInterval = null;
+        let pomoSeconds = 25 * 60;
+        let pomoIsWork = true; // true: 작업중(25분), false: 휴식중(5분)
+        let pomoRunning = false;
+        let pomoVisible = true;
 
         // IndexedDB를 이용한 디렉토리 핸들 저장/조회
         const DB_NAME = 'TdtdAppDB';
@@ -256,7 +301,7 @@
             }
         }
 
-        // 앱 시작 시 이전 폴더 핸들 복구 시도
+        // 앱 시작 시 폴더 권한 확인 및 게이트키퍼 제어
         window.addEventListener('DOMContentLoaded', async () => {
             await loadSettings();
             const savedHandle = await getHandleFromDB();
@@ -266,15 +311,61 @@
                     autoSaveStatus.innerText = '자동저장 켜짐';
                     btnFolder.innerText = '폴더 연결됨';
                     btnFolder.classList.add('bg-blue-100', 'text-blue-800');
-                    await loadFileList();
+                    gatekeeperScreen.style.display = 'none';
+                    await initAppAfterFolderConnected();
                 } else {
                     dirHandle = savedHandle;
-                    autoSaveStatus.innerText = '클릭하여 폴더 권한 허용';
-                    btnFolder.innerText = '폴더 권한 재확인';
-                    btnFolder.classList.add('bg-amber-100', 'text-amber-800');
+                    gatekeeperScreen.style.display = 'flex';
                 }
+            } else {
+                gatekeeperScreen.style.display = 'flex';
             }
         });
+
+        // 게이트키퍼 폴더 지정 버튼
+        gateBtnPick.addEventListener('click', async () => {
+            try {
+                dirHandle = await window.showDirectoryPicker();
+                await saveHandleToDB(dirHandle);
+                gateStep1.classList.add('hidden');
+                gateStep2.classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        // 게이트키퍼 최종 시작 버튼
+        gateBtnStart.addEventListener('click', async () => {
+            gatekeeperScreen.style.display = 'none';
+            autoSaveStatus.innerText = '자동저장 켜짐';
+            btnFolder.innerText = '폴더 연결됨';
+            btnFolder.classList.add('bg-blue-100', 'text-blue-800');
+            await initAppAfterFolderConnected();
+        });
+
+        async function initAppAfterFolderConnected() {
+            await loadFileList();
+            await loadSettings();
+            await loadPomodoroLogs();
+
+            // 직전에 작업하던 파일 불러오기 시도
+            const lastFile = localStorage.getItem('tdtd_last_file');
+            if (lastFile) {
+                try {
+                    const fileHandle = await dirHandle.getFileHandle(lastFile);
+                    const file = await fileHandle.getFile();
+                    const text = await file.text();
+                    editor.innerHTML = text;
+                    const cleanName = lastFile.replace(/\.md$/, '');
+                    fileNameInput.value = cleanName;
+                    fileTitleDisplay.innerText = cleanName;
+                    fileSelect.value = lastFile;
+                    updateCharCount();
+                } catch (e) {
+                    console.error('마지막 파일 로드 실패:', e);
+                }
+            }
+        }
 
         // 지정 폴더 내 settings.json에 설정 저장
         async function saveSettings() {
@@ -391,30 +482,17 @@
             saveSettings();
         });
 
-        // 폴더 지정 버튼
+        // 폴더 지정 버튼 (헤더)
         btnFolder.addEventListener('click', async () => {
             try {
-                if (dirHandle) {
-                    const permission = await dirHandle.requestPermission({ mode: 'readwrite' });
-                    if (permission === 'granted') {
-                        autoSaveStatus.innerText = '자동저장 켜짐';
-                        btnFolder.innerText = '폴더 연결됨';
-                        btnFolder.classList.remove('bg-amber-100', 'text-amber-800');
-                        btnFolder.classList.add('bg-blue-100', 'text-blue-800');
-                        await loadFileList();
-                        await loadSettings();
-                        return;
-                    }
-                }
                 dirHandle = await window.showDirectoryPicker();
                 await saveHandleToDB(dirHandle);
                 autoSaveStatus.innerText = '자동저장 켜짐';
                 btnFolder.innerText = '폴더 연결됨';
                 btnFolder.classList.remove('bg-amber-100', 'text-amber-800');
                 btnFolder.classList.add('bg-blue-100', 'text-blue-800');
-                alert('저장 폴더가 지정되었습니다.');
-                await loadFileList();
-                await loadSettings();
+                alert('저장 폴더가 변경되었습니다.');
+                await initAppAfterFolderConnected();
             } catch (err) {
                 console.error(err);
             }
@@ -449,6 +527,7 @@
                 const cleanName = val.replace(/\.md$/, '');
                 fileNameInput.value = cleanName;
                 fileTitleDisplay.innerText = cleanName;
+                localStorage.setItem('tdtd_last_file', fullName);
                 updateCharCount();
             } catch (err) {
                 alert('파일 읽기 실패: ' + err.message);
@@ -494,6 +573,7 @@
             if (!dirHandle) return;
             const rawName = fileNameInput.value.trim() || 'untitled';
             const title = rawName.endsWith('.md') ? rawName : rawName + '.md';
+            localStorage.setItem('tdtd_last_file', title);
 
             try {
                 const fileHandle = await dirHandle.getFileHandle(title, { create: true });
@@ -527,7 +607,7 @@
                     let node = selection.anchorNode;
                     let memoBox = node.nodeType === Node.TEXT_NODE ? node.parentElement.closest('.para-memo') : node.closest('.para-memo');
                     if (memoBox) {
-                        e.preventDefault(); // 전체 에디터가 선택되는 기본 동작 방지
+                        e.preventDefault();
                         const range = document.createRange();
                         range.selectNodeContents(memoBox);
                         selection.removeAllRanges();
@@ -738,7 +818,143 @@
             saveSettings();
         });
 
-        // 헬퍼: 노드가 속한 문단 블록 찾기
+        // --- 뽀모도로 타이머 로직 ---
+        const pomoSidebar = document.getElementById('pomodoro-sidebar');
+        const btnTogglePomo = document.getElementById('btn-toggle-pomo');
+        const pomoControlBtn = document.getElementById('pomo-control-btn');
+        const pomoDisplay = document.getElementById('pomo-display');
+        const pomoLogsContainer = document.getElementById('pomo-logs');
+
+        btnTogglePomo.addEventListener('click', () => {
+            pomoVisible = !pomoVisible;
+            if (pomoVisible) {
+                pomoSidebar.style.display = 'flex';
+                btnTogglePomo.innerText = '뽀모 숨기기';
+            } else {
+                pomoSidebar.style.display = 'none';
+                btnTogglePomo.innerText = '뽀모 보이기';
+            }
+        });
+
+        function formatTime(secs) {
+            const m = Math.floor(secs / 60).toString().padStart(2, '0');
+            const s = (secs % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function updatePomoDisplay() {
+            const stateStr = pomoIsWork ? '작업중' : '휴식중';
+            pomoDisplay.innerText = `${stateStr} ${formatTime(pomoSeconds)}`;
+        }
+
+        pomoControlBtn.addEventListener('click', () => {
+            if (!pomoRunning) {
+                pomoRunning = true;
+                pomoControlBtn.innerText = '정지';
+                startPomoTimer();
+            } else {
+                pomoRunning = false;
+                pomoControlBtn.innerText = '시작';
+                clearInterval(pomoInterval);
+            }
+        });
+
+        function startPomoTimer() {
+            if (pomoInterval) clearInterval(pomoInterval);
+            pomoInterval = setInterval(async () => {
+                pomoSeconds--;
+                if (pomoSeconds < 0) {
+                    if (pomoIsWork) {
+                        // 작업 주기 종료 시점: 글자수 기록 생성 및 JSON 저장
+                        await recordPomoCompletion();
+                        // 휴식 전환 (5분)
+                        pomoIsWork = false;
+                        pomoSeconds = 5 * 60;
+                    } else {
+                        // 휴식 주기 종료 -> 작업 전환 (25분)
+                        pomoIsWork = true;
+                        pomoSeconds = 25 * 60;
+                    }
+                }
+                updatePomoDisplay();
+            }, 1000);
+        }
+
+        async function recordPomoCompletion() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+            // 글자수 계산 (메모 제외)
+            const clone = editor.cloneNode(true);
+            clone.querySelectorAll('.para-memo').forEach(m => m.remove());
+            const text = (clone.innerText || '').trim();
+            const withSpaces = text.length;
+            const withoutSpaces = text.replace(/\s/g, '').length;
+
+            const logEntry = {
+                date: dateStr,
+                time: timeStr,
+                withSpaces: withSpaces,
+                withoutSpaces: withoutSpaces
+            };
+
+            // 기존 로그 불러오기 및 추가
+            let allLogs = [];
+            if (dirHandle) {
+                try {
+                    const fileHandle = await dirHandle.getFileHandle('pomodoro_logs.json', { create: true });
+                    const file = await fileHandle.getFile();
+                    const textContent = await file.text();
+                    if (textContent.trim()) {
+                        allLogs = JSON.parse(textContent);
+                    }
+                } catch (e) {}
+
+                allLogs.push(logEntry);
+
+                try {
+                    const fileHandle = await dirHandle.getFileHandle('pomodoro_logs.json', { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(JSON.stringify(allLogs, null, 2));
+                    await writable.close();
+                } catch (e) {
+                    console.error('뽀모도로 로그 파일 저장 실패:', e);
+                }
+            }
+            renderPomoLogs(allLogs);
+        }
+
+        async function loadPomodoroLogs() {
+            if (!dirHandle) return;
+            try {
+                const fileHandle = await dirHandle.getFileHandle('pomodoro_logs.json');
+                const file = await fileHandle.getFile();
+                const textContent = await file.text();
+                if (textContent.trim()) {
+                    const allLogs = JSON.parse(textContent);
+                    renderPomoLogs(allLogs);
+                }
+            } catch (e) {
+                // 파일이 없으면 무시
+            }
+        }
+
+        function renderPomoLogs(allLogs) {
+            pomoLogsContainer.innerHTML = '';
+            // 날짜 상관없이 최근 기록 5개만 가져오기
+            const recentLogs = allLogs.slice(-5);
+            recentLogs.forEach(log => {
+                const div = document.createElement('div');
+                div.textContent = `${log.time} 공백포함글자수 ${log.withSpaces} (${log.withoutSpaces})`;
+                pomoLogsContainer.appendChild(div);
+            });
+        }
+
+        // --- 문단 잠금 및 기타 헬퍼 ---
         function getParentBlock(node) {
             if (!node) return null;
             let block = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
@@ -748,7 +964,6 @@
             return (block && block !== editor && editor.contains(block)) ? block : null;
         }
 
-        // 선택 영역 정밀 보정 헬퍼 (더블클릭/삼중클릭 시 다음 문단 시작점으로 오버플로우되는 현상 방지)
         function getNormalizedSelectionRange() {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) return null;
@@ -774,7 +989,6 @@
             return range;
         }
 
-        // 문단 단위 잠금 처리 (드래그 포함 영역 전체 잠금 + 오버플로우 버그 해결)
         document.getElementById('btn-lock').addEventListener('click', () => {
             const selection = window.getSelection();
             if (!selection.rangeCount || selection.isCollapsed) {
@@ -832,7 +1046,6 @@
             executeAutoSave();
         });
 
-        // 문단 잠금 일괄 해제 버튼
         document.getElementById('btn-unlock-all').addEventListener('click', () => {
             const lockedBlocks = editor.querySelectorAll('.locked-paragraph, [contenteditable="false"]');
             if (lockedBlocks.length === 0) {
@@ -849,7 +1062,6 @@
             alert('모든 문단 잠금이 해제되었습니다.');
         });
 
-        // 우클릭 시 컨텍스트 메뉴 표시 (잠금/해제 및 메모 추가/삭제)
         editor.addEventListener('contextmenu', (e) => {
             const block = getParentBlock(e.target);
             if (block && !e.target.classList.contains('para-memo')) {
@@ -870,13 +1082,11 @@
             }
         });
 
-        // 전역 클릭 시 커서 메뉴 닫기
         window.addEventListener('click', () => {
             contextMenu.style.display = 'none';
             titleContextMenu.style.display = 'none';
         });
 
-        // 우클릭 메뉴: 잠금/해제 토글
         document.getElementById('menu-lock-toggle-btn').addEventListener('click', () => {
             if (currentBlock) {
                 const isLocked = currentBlock.classList.contains('locked-paragraph') || currentBlock.getAttribute('contenteditable') === 'false';
@@ -895,7 +1105,6 @@
             currentBlock = null;
         });
 
-        // 우클릭 메뉴: 메모 추가/삭제 토글 (span 태그 기반, 자동 커서 포커스 및 .has-memo 여백 관리)
         document.getElementById('menu-memo-toggle-btn').addEventListener('click', () => {
             if (currentBlock) {
                 const existingMemo = currentBlock.querySelector('.para-memo');
