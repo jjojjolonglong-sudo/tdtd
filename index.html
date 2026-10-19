@@ -1,1092 +1,288 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>심플 집필 앱</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        /* 문단 잠금: 본문 위치 유지, 텍스트 뒤에 회색 배경음영 적용 */
-        .locked-paragraph {
-            background-color: #e5e7eb;
-            padding: 2px 6px;
-            border-radius: 4px;
-            user-select: text;
-        }
-        
-        /* 문단별 상대 좌표 설정 (메모 기준점) */
-        #editor p, #editor div {
-            position: relative;
-        }
-
-        /* 메모가 있는 문단의 최소 높이는 syncMemoHeights()가 메모 높이에 맞춰 계산 */
-
-        /* 우측 여백 메모 박스 (span 태그 기반, 300px 넉넉한 너비, 첫줄 나란히 정렬) */
-        .para-memo {
-            position: absolute;
-            left: calc(100% + 1.5rem);
-            top: 0;
-            width: 300px;
-            background-color: #f1f3f5;
-            padding: 2px 12px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            line-height: 1.4;
-            border: none;
-            outline: none;
-            text-align: left;
-            text-indent: 0 !important;
-            z-index: 10;
-            display: inline-block;
-        }
-        /* 문단 첫 줄과 메모를 잇는 연결선 */
-        .para-memo::before {
-            content: "";
-            position: absolute;
-            left: -1rem;
-            top: 0.8em;
-            width: 1rem;
-            height: 1px;
-            background-color: #cbd5e1;
-        }
-
-        /* 우클릭 커스텀 메뉴 스타일 */
-        #context-menu, #title-context-menu {
-            display: none;
-            position: absolute;
-            background: #ffffff;
-            border: 1px solid #d1d5db;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            border-radius: 0.375rem;
-            padding: 4px;
-            z-index: 10000;
-            font-size: 12px;
-        }
-        #context-menu button, #title-context-menu button {
-            display: block;
-            width: 100%;
-            text-align: left;
-            padding: 6px 12px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            border-radius: 0.25rem;
-            color: #374151;
-        }
-        #context-menu button:hover, #title-context-menu button:hover {
-            background-color: #f3f4f6;
-            color: #111827;
-        }
-        /* 플레이스홀더 스타일 */
-        #editor:empty:before {
-            content: "여기에 글을 작성하세요...";
-            color: #9ca3af;
-            pointer-events: none;
-            display: block;
-        }
-        /* 상단 버튼 공통 스타일 */
-        .tb { padding: 4px 10px; border-radius: 4px; font-weight: 500; white-space: nowrap; transition: background-color .15s, color .15s; }
-        .tb-neutral { background: #e5e7eb; color: #374151; }
-        .tb-neutral:hover { background: #d1d5db; }
-        .tb-switch { background: #e0f2fe; color: #075985; }   /* 값 순환 스위치: 연한 파랑 */
-        .tb-switch:hover { background: #bae6fd; }
-        .tb-toggle { background: #e5e7eb; color: #6b7280; }   /* on/off: 회색 */
-        .tb-toggle:hover { background: #d1d5db; }
-        .tb-toggle.on { background: #d1fae5; color: #065f46; } /* on/off: 연한 초록 */
-        .tb-toggle.on:hover { background: #a7f3d0; }
-        .tb-sep { width: 1px; height: 16px; background: #d1d5db; margin: 0 4px; }
-        /* 폰트 스타일 */
-        .font-sans-system { font-family: system-ui, -apple-system, sans-serif; }
-        .font-gulim { font-family: 'Gulim', '굴림', sans-serif; }
-        .font-dodum { font-family: 'Dodum', '돋움', sans-serif; }
-        .font-batang { font-family: 'Batang', '바탕', serif; }
-
-        /* 들여쓰기 (1em) */
-        #editor.indent-on, #editor.indent-on p, #editor.indent-on div, #editor.indent-on li,
-        #editor.indent-on h1, #editor.indent-on h2, #editor.indent-on h3 {
-            text-indent: 1em !important;
-        }
-        #editor.indent-on .para-memo { text-indent: 0 !important; }
-
-        /* 줄간격 */
-        .leading-tight-custom { line-height: 1.3; }
-        .leading-normal-custom { line-height: 1.6; }
-        .leading-loose-custom { line-height: 2.0; }
-
-        /* 문단 간격 */
-        .para-spacing-on > p, .para-spacing-on > div { margin-bottom: 1em; }
-        .para-spacing-off > p, .para-spacing-off > div { margin-bottom: 0; }
-    </style>
-</head>
-<body class="bg-white text-gray-900 h-screen flex flex-col m-0 overflow-hidden">
-
-    <!-- 최초 접속 / 폴더 미연결 시 뜨는 게이트키퍼 화면 -->
-    <div id="gatekeeper-screen" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 text-center select-none">
-        <!-- 1단계 안내 -->
-        <div id="gate-step-1" class="max-w-md space-y-6">
-            <p class="text-base font-medium text-gray-800 leading-relaxed">원고를 안전하게 보관하기 위해 저장 폴더를 선택하신 뒤 권한을 허용해주세요.</p>
-            <button id="gate-btn-pick" class="px-5 py-2.5 bg-blue-600 text-white rounded font-medium text-sm hover:bg-blue-700 shadow-sm transition">저장 폴더 선택하기</button>
-        </div>
-        <!-- 2단계 안내 (폴더 지정 직후 1회 표출) -->
-        <div id="gate-step-2" class="max-w-md space-y-6 hidden">
-            <p class="text-base font-medium text-gray-800 leading-relaxed">브라우저 설정을 초기화하거나 쿠키 및 사이트 데이터를 삭제하면 폴더 연결 권한이 끊어질 수 있습니다. 폴더를 다시 연결하면 저장했던 원고들이 불러와집니다.</p>
-            <button id="gate-btn-start" class="px-5 py-2.5 bg-blue-600 text-white rounded font-medium text-sm hover:bg-blue-700 shadow-sm transition">확인 및 시작하기</button>
-        </div>
-    </div>
-
-    <!-- 우클릭 커스텀 메뉴 (문단 잠금 및 메모 관리용) -->
-    <div id="context-menu">
-        <button id="menu-lock-toggle-btn">🔒 문단 잠금</button>
-        <button id="menu-memo-toggle-btn">📝 메모 추가</button>
-    </div>
-
-    <!-- 파일 제목 우클릭 메뉴 -->
-    <div id="title-context-menu">
-        <button id="menu-edit-title-btn">✏️ 이름 수정</button>
-    </div>
-
-    <div id="app-screen" class="flex flex-col h-full">
-        <header class="flex items-center justify-between px-6 py-2.5 border-b border-gray-200 text-xs select-none bg-gray-50 flex-wrap gap-x-4 gap-y-2 flex-shrink-0">
-            <!-- 파일 -->
-            <div class="flex items-center gap-2 flex-wrap">
-                <button id="btn-folder" class="tb tb-neutral">폴더 변경</button>
-
-                <select id="file-select" class="border border-gray-300 rounded px-2 py-1 bg-white text-xs outline-none focus:border-blue-500 w-32" title="저장된 파일 불러오기">
-                    <option value="">파일 목록</option>
-                </select>
-
-                <div id="file-title-wrapper" class="relative flex items-center">
-                    <span id="file-title-display" class="border border-transparent hover:border-gray-300 rounded px-2 py-1 bg-transparent text-sm font-medium cursor-pointer" title="우클릭하여 이름 수정">untitled</span>
-                    <input type="text" id="file-name" value="untitled" class="border border-gray-300 rounded px-2 py-1 bg-white text-sm font-medium outline-none focus:border-blue-500 w-28 hidden" title="파일 이름">
-                </div>
-
-                <button id="btn-save" class="tb bg-blue-600 text-white hover:bg-blue-700">저장</button>
-                <button id="btn-export-txt" class="tb bg-emerald-600 text-white hover:bg-emerald-700">내보내기</button>
-                <span id="auto-save-status" class="text-gray-400 text-[11px] ml-1">폴더 미지정</span>
-            </div>
-
-            <!-- 서식 / 화면 -->
-            <div class="flex items-center gap-2 flex-wrap">
-                <!-- 글자 -->
-                <button id="btn-font" class="tb tb-switch" title="글씨체 전환">굴림체</button>
-                <!-- 문단 -->
-                <span class="tb-sep"></span>
-                <button id="btn-align" class="tb tb-switch" title="선택한 문단 정렬 전환">양쪽</button>
-                <button id="btn-leading" class="tb tb-switch" title="줄간격 전환">줄간격 1.6</button>
-                <button id="btn-indent" class="tb tb-toggle" title="들여쓰기 켜기/끄기">들여쓰기</button>
-                <button id="btn-para" class="tb tb-toggle" title="문단간격 켜기/끄기">문단간격</button>
-                <!-- 화면 배치 -->
-                <span class="tb-sep"></span>
-                <button id="btn-margin" class="tb tb-switch" title="여백 전환">여백 중간</button>
-                <button id="btn-toggle-pomo" class="tb tb-toggle on" title="뽀모 보이기/숨기기">뽀모</button>
-                <!-- 잠금 -->
-                <span class="tb-sep"></span>
-                <button id="btn-unlock-all" class="tb tb-neutral">🔓 전체 잠금 해제</button>
-            </div>
-        </header>
-
-        <!-- 메인 집필 화면 (왼쪽 여백 뽀모도로 + 중앙 본문 영역) -->
-        <div class="flex-1 flex overflow-hidden relative">
-            <!-- 왼쪽 여백 뽀모도로 타이머 패널 (선 없음, 하단에 최근 기록 5줄 배치) -->
-            <aside id="pomodoro-sidebar" class="absolute left-0 top-0 bottom-0 w-64 p-4 pb-14 flex flex-col justify-between text-xs select-none z-20 pointer-events-none">
-                <div class="space-y-2">
-                    <div class="flex items-center gap-2">
-                        <button id="pomo-control-btn" class="pointer-events-auto px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 font-medium">시작</button>
-                        <span id="pomo-display" class="text-gray-700 font-medium">작업중 25:00</span>
-                    </div>
-                </div>
-                <div class="pt-4">
-                    <div id="pomo-logs" class="space-y-1 text-gray-500 text-[11px]"></div>
-                </div>
-            </aside>
-
-            <!-- 본문 영역 스크롤바 -->
-            <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
-                <div id="content-wrapper" class="w-full min-h-full flex flex-col py-12" style="padding-left:24px;padding-right:24px;transition:padding .2s;">
-                    <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-gulim leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
-                </div>
-            </main>
-        </div>
-
-        <!-- 하단 글자수 표기 바 (고정형) -->
-        <footer class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-sm border-t border-gray-200 py-2 px-6 text-gray-500 text-xs select-none z-40 flex justify-end">
-            <span id="char-count">글자수 0 (0)</span>
-        </footer>
-    </div>
-
-    <script>
-        const editor = document.getElementById('editor');
-        const charCountSpan = document.getElementById('char-count');
-        const fileNameInput = document.getElementById('file-name');
-        const fileTitleDisplay = document.getElementById('file-title-display');
-        const fileTitleWrapper = document.getElementById('file-title-wrapper');
-        const titleContextMenu = document.getElementById('title-context-menu');
-        const fileSelect = document.getElementById('file-select');
-        const autoSaveStatus = document.getElementById('auto-save-status');
-        const contentWrapper = document.getElementById('content-wrapper');
-        const contextMenu = document.getElementById('context-menu');
-        const btnFolder = document.getElementById('btn-folder');
-        const mainContainer = document.getElementById('main-container');
-        
-        const gatekeeperScreen = document.getElementById('gatekeeper-screen');
-        const gateStep1 = document.getElementById('gate-step-1');
-        const gateStep2 = document.getElementById('gate-step-2');
-        const gateBtnPick = document.getElementById('gate-btn-pick');
-        const gateBtnStart = document.getElementById('gate-btn-start');
-
-        let dirHandle = null;
-        let marginMode = 2; // 0: 없음, 1: 좁음, 2: 중간, 3: 넓음
-        let isIndentOn = false;
-        let isParaOn = false;
-        let autoSaveTimer = null;
-        let currentBlock = null;
-
-        // 뽀모도로 관련 변수
-        let pomoInterval = null;
-        let pomoSeconds = 25 * 60;
-        let pomoIsWork = true; // true: 작업중(25분), false: 휴식중(5분)
-        let pomoRunning = false;
-        let pomoVisible = true;
-
-        // IndexedDB를 이용한 디렉토리 핸들 저장/조회
-        const DB_NAME = 'TdtdAppDB';
-        const STORE_NAME = 'handles';
-
-        function openDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, 1);
-                request.onupgradeneeded = (e) => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        db.createObjectStore(STORE_NAME);
-                    }
-                };
-                request.onsuccess = (e) => resolve(e.target.result);
-                request.onerror = (e) => reject(e.target.error);
-            });
-        }
-
-        async function saveHandleToDB(handle) {
-            try {
-                const db = await openDB();
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                tx.objectStore(STORE_NAME).put(handle, 'savedDirHandle');
-                return new Promise((resolve, reject) => {
-                    tx.oncomplete = () => resolve();
-                    tx.onerror = () => reject(tx.error);
-                });
-            } catch (e) {
-                console.error('핸들 DB 저장 실패:', e);
-            }
-        }
-
-        async function getHandleFromDB() {
-            try {
-                const db = await openDB();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(STORE_NAME, 'readonly');
-                    const request = tx.objectStore(STORE_NAME).get('savedDirHandle');
-                    request.onsuccess = (e) => resolve(e.target.result);
-                    request.onerror = (e) => reject(e.target.error);
-                });
-            } catch (e) {
-                return null;
-            }
-        }
-
-        // 앱 시작 시 폴더 권한 확인 및 게이트키퍼 제어
-        window.addEventListener('DOMContentLoaded', async () => {
-            applyAllUI();
-            await loadSettings();
-            const savedHandle = await getHandleFromDB();
-            if (savedHandle) {
-                if ((await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted') {
-                    dirHandle = savedHandle;
-                    autoSaveStatus.innerText = '자동저장 켜짐';
-                    gatekeeperScreen.style.display = 'none';
-                    await initAppAfterFolderConnected();
-                } else {
-                    dirHandle = savedHandle;
-                    gatekeeperScreen.style.display = 'flex';
-                }
-            } else {
-                gatekeeperScreen.style.display = 'flex';
-            }
-        });
-
-        // 게이트키퍼 폴더 지정 버튼
-        gateBtnPick.addEventListener('click', async () => {
-            try {
-                dirHandle = await window.showDirectoryPicker();
-                await saveHandleToDB(dirHandle);
-                gateStep1.classList.add('hidden');
-                gateStep2.classList.remove('hidden');
-            } catch (err) {
-                console.error(err);
-            }
-        });
-
-        // 게이트키퍼 최종 시작 버튼
-        gateBtnStart.addEventListener('click', async () => {
-            gatekeeperScreen.style.display = 'none';
-            autoSaveStatus.innerText = '자동저장 켜짐';
-            await initAppAfterFolderConnected();
-        });
-
-        async function initAppAfterFolderConnected() {
-            await loadFileList();
-            await loadSettings();
-            await loadPomodoroLogs();
-
-            // 직전에 작업하던 파일 불러오기 시도
-            const lastFile = localStorage.getItem('tdtd_last_file');
-            if (lastFile) {
-                try {
-                    const fileHandle = await dirHandle.getFileHandle(lastFile);
-                    const file = await fileHandle.getFile();
-                    const text = await file.text();
-                    editor.innerHTML = text;
-                    const cleanName = lastFile.replace(/\.md$/, '');
-                    fileNameInput.value = cleanName;
-                    fileTitleDisplay.innerText = cleanName;
-                    fileSelect.value = lastFile;
-                    updateCharCount();
-                } catch (e) {
-                    console.error('마지막 파일 로드 실패:', e);
-                }
-            }
-        }
-
-        // ---------- 서식 상태 / UI 적용 ----------
-        const FONTS = [['gulim', '굴림체'], ['dodum', '돋움체'], ['batang', '바탕체']];
-        const LEADINGS = [['tight', '1.3'], ['normal', '1.6'], ['loose', '2.0']];
-        const MARGIN_LABELS = ['없음', '좁음', '중간', '넓음'];
-        const MARGIN_WIDTHS = [0, 1024, 768, 576];
-        let fontKey = 'gulim';
-        let leadingKey = 'normal';
-
-        const btnFont = document.getElementById('btn-font');
-        const btnLeading = document.getElementById('btn-leading');
-        const btnIndent = document.getElementById('btn-indent');
-        const btnPara = document.getElementById('btn-para');
-        const btnMargin = document.getElementById('btn-margin');
-
-        function applyFont() {
-            if (!FONTS.some(f => f[0] === fontKey)) fontKey = 'gulim';
-            editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
-            editor.classList.add('font-' + fontKey);
-            btnFont.innerText = FONTS.find(f => f[0] === fontKey)[1];
-            syncMemoHeights();
-        }
-        function applyLeading() {
-            if (!LEADINGS.some(l => l[0] === leadingKey)) leadingKey = 'normal';
-            editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
-            editor.classList.add('leading-' + leadingKey + '-custom');
-            btnLeading.innerText = '줄간격 ' + LEADINGS.find(l => l[0] === leadingKey)[1];
-        }
-        function applyIndent() {
-            editor.classList.toggle('indent-on', isIndentOn);
-            btnIndent.classList.toggle('on', isIndentOn);
-        }
-        function applyPara() {
-            editor.classList.toggle('para-spacing-on', isParaOn);
-            editor.classList.toggle('para-spacing-off', !isParaOn);
-            btnPara.classList.toggle('on', isParaOn);
-            syncMemoHeights();
-        }
-        function applyMarginMode() {
-            btnMargin.innerText = '여백 ' + MARGIN_LABELS[marginMode];
-            applyLayout();
-        }
-        function applyPomoVisibility() {
-            pomoSidebar.style.display = pomoVisible ? 'flex' : 'none';
-            btnTogglePomo.classList.toggle('on', pomoVisible);
-            applyLayout();
-        }
-        function applyAllUI() {
-            applyFont(); applyLeading(); applyIndent(); applyPara(); applyMarginMode(); applyPomoVisibility();
-        }
-
-        /* ---------- 레이아웃 ----------
-           - 본문은 기본적으로 중앙.
-           - 여백이 있을 때: 뽀모(왼쪽)·메모(오른쪽)는 여백 영역에만 표시 → 본문 위치 불변(좌우 대칭).
-             단, 창이 좁아 여백 영역에 안 들어가면 본문 폭만 줄여서 확보.
-           - 여백 없음: 뽀모/메모가 실제로 필요한 만큼만 양쪽에서 영역을 내주고 나머지는 본문이 꽉 채움(비대칭 가능). */
-        const POMO_W = 256;   // 뽀모 패널 폭
-        const MEMO_W = 340;   // 메모 폭(300) + 연결선(24) + 여유
-        const BASE_PAD = 24;  // 기본 좌우 여백
-
-        function applyLayout() {
-            const W = mainContainer.clientWidth;
-            if (!W) return;
-            const hasMemo = !!editor.querySelector('.para-memo');
-            const pomoNeed = pomoVisible ? POMO_W : 0;
-            const memoNeed = hasMemo ? MEMO_W : 0;
-            let left, right;
-
-            if (marginMode === 0) {
-                left = Math.max(BASE_PAD, pomoNeed);
-                right = Math.max(BASE_PAD, memoNeed);
-            } else {
-                const side = Math.max(BASE_PAD, pomoNeed, memoNeed);
-                let bodyW = Math.min(MARGIN_WIDTHS[marginMode], W - 2 * side);
-                bodyW = Math.max(bodyW, Math.min(320, W - 2 * BASE_PAD));
-                left = right = Math.max(BASE_PAD, (W - bodyW) / 2);
-            }
-            contentWrapper.style.paddingLeft = left + 'px';
-            contentWrapper.style.paddingRight = right + 'px';
-        }
-        new ResizeObserver(applyLayout).observe(mainContainer);
-
-        // 지정 폴더 내 settings.json에 설정 저장
-        async function saveSettings() {
-            const settings = {
-                font: fontKey,
-                indent: isIndentOn,
-                leading: leadingKey,
-                para: isParaOn,
-                margin: marginMode
-            };
-
-            localStorage.setItem('tdtd_app_settings', JSON.stringify(settings));
-
-            if (dirHandle) {
-                try {
-                    const fileHandle = await dirHandle.getFileHandle('settings.json', { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(JSON.stringify(settings));
-                    await writable.close();
-                } catch (e) {
-                    console.error('설정 파일 저장 실패:', e);
-                }
-            }
-        }
-
-        async function loadSettings() {
-            let s = null;
-            if (dirHandle) {
-                try {
-                    const fileHandle = await dirHandle.getFileHandle('settings.json');
-                    const file = await fileHandle.getFile();
-                    s = JSON.parse(await file.text());
-                } catch (e) {}
-            }
-            if (!s) {
-                const saved = localStorage.getItem('tdtd_app_settings');
-                if (saved) s = JSON.parse(saved);
-            }
-            if (!s) return;
-
-            try {
-                if (s.font) fontKey = s.font;                 // 예전 'system' 값은 굴림체로 대체됨
-                if (s.indent !== undefined) isIndentOn = !!s.indent;
-                if (s.leading) leadingKey = s.leading;
-                if (s.para !== undefined) isParaOn = !!s.para;
-                if (s.margin !== undefined) marginMode = s.margin;
-                applyAllUI();
-            } catch (e) {
-                console.error('설정 적용 실패:', e);
-            }
-        }
-
-        // 스위치 버튼들: 클릭할 때마다 값 순환
-        btnMargin.addEventListener('click', () => {
-            marginMode = (marginMode + 1) % 4;
-            applyMarginMode();
-            saveSettings();
-        });
-        btnFont.addEventListener('click', () => {
-            const i = FONTS.findIndex(f => f[0] === fontKey);
-            fontKey = FONTS[(i + 1) % FONTS.length][0];
-            applyFont();
-            saveSettings();
-        });
-        btnLeading.addEventListener('click', () => {
-            const i = LEADINGS.findIndex(l => l[0] === leadingKey);
-            leadingKey = LEADINGS[(i + 1) % LEADINGS.length][0];
-            applyLeading();
-            saveSettings();
-        });
-        btnIndent.addEventListener('click', () => {
-            isIndentOn = !isIndentOn;
-            applyIndent();
-            saveSettings();
-        });
-        btnPara.addEventListener('click', () => {
-            isParaOn = !isParaOn;
-            applyPara();
-            saveSettings();
-        });
-
-        // 폴더 지정 버튼 (헤더)
-        btnFolder.addEventListener('click', async () => {
-            try {
-                dirHandle = await window.showDirectoryPicker();
-                await saveHandleToDB(dirHandle);
-                autoSaveStatus.innerText = '자동저장 켜짐';
-                await initAppAfterFolderConnected();
-            } catch (err) {
-                console.error(err);
-            }
-        });
-
-        // 파일 목록 불러오기
-        async function loadFileList() {
-            if (!dirHandle) return;
-            fileSelect.innerHTML = '<option value="">파일 목록</option>';
-            
-            for await (const entry of dirHandle.values()) {
-                if (entry.kind === 'file' && entry.name.endsWith('.md')) {
-                    const opt = document.createElement('option');
-                    opt.value = entry.name;
-                    opt.textContent = entry.name.replace(/\.md$/, '');
-                    fileSelect.appendChild(opt);
-                }
-            }
-        }
-
-        // 드롭다운에서 기존 파일 선택 시 불러오기
-        fileSelect.addEventListener('change', async (e) => {
-            const val = e.target.value;
-            if (!val || !dirHandle) return;
-
-            const fullName = val.endsWith('.md') ? val : val + '.md';
-            try {
-                const fileHandle = await dirHandle.getFileHandle(fullName);
-                const file = await fileHandle.getFile();
-                const text = await file.text();
-                editor.innerHTML = text;
-                const cleanName = val.replace(/\.md$/, '');
-                fileNameInput.value = cleanName;
-                fileTitleDisplay.innerText = cleanName;
-                localStorage.setItem('tdtd_last_file', fullName);
-                updateCharCount();
-            } catch (err) {
-                alert('파일 읽기 실패: ' + err.message);
-            }
-        });
-
-        // 글자수 표기 (메모 영역 제외하고 본문 텍스트만 계산)
-        // 메모가 문단보다 길면 그만큼만 문단 아래 공간 확보 (메모 높이 - 문단 아래 간격).
-        // 메모가 문단 안에 들어가면 추가 여백 없음.
-        function syncMemoHeights() {
-            Array.from(editor.children).forEach(block => {
-                const memo = block.querySelector(':scope > .para-memo');
-                if (!memo) {
-                    if (block.style.minHeight) {
-                        block.style.minHeight = '';
-                        if (!block.getAttribute('style')) block.removeAttribute('style');
-                    }
-                    return;
-                }
-                const mb = parseFloat(getComputedStyle(block).marginBottom) || 0;
-                const need = Math.max(0, Math.ceil(memo.offsetHeight - mb));
-                block.style.minHeight = need + 'px';
-            });
-        }
-
-        function updateCharCount() {
-            syncMemoHeights();
-            const clone = editor.cloneNode(true);
-            clone.querySelectorAll('.para-memo').forEach(m => m.remove());
-            const text = clone.innerText || '';
-            const cleanText = text.trim();
-            const withSpaces = cleanText.length;
-            const withoutSpaces = cleanText.replace(/\s/g, '').length;
-            charCountSpan.innerText = `글자수 ${withSpaces.toLocaleString()} (${withoutSpaces.toLocaleString()})`;
-            applyLayout(); // 메모 유무에 따라 레이아웃 갱신
-        }
-
-        // 커서 위치가 화면 하단에 가려지지 않도록 스크롤 자동 보정 (5줄 여유 유지)
-        function ensureCursorVisible() {
-            const selection = window.getSelection();
-            if (!selection.rangeCount) return;
-            const range = selection.getRangeAt(0);
-            
-            let rect = range.getBoundingClientRect();
-            if (rect.top === 0 && rect.bottom === 0) {
-                const span = document.createElement('span');
-                span.textContent = '\u200b';
-                range.insertNode(span);
-                rect = span.getBoundingClientRect();
-                span.remove();
-            }
-
-            const containerRect = mainContainer.getBoundingClientRect();
-            const bottomThreshold = containerRect.bottom - 150;
-
-            if (rect.bottom > bottomThreshold) {
-                mainContainer.scrollTop += (rect.bottom - bottomThreshold);
-            }
-        }
-
-        // 자동 저장
-        async function executeAutoSave() {
-            if (!dirHandle) return;
-            const rawName = fileNameInput.value.trim() || 'untitled';
-            const title = rawName.endsWith('.md') ? rawName : rawName + '.md';
-            localStorage.setItem('tdtd_last_file', title);
-
-            try {
-                const fileHandle = await dirHandle.getFileHandle(title, { create: true });
-                const writable = await fileHandle.createWritable();
-                await writable.write(editor.innerHTML);
-                await writable.close();
-                autoSaveStatus.innerText = '저장됨';
-                setTimeout(() => { autoSaveStatus.innerText = '자동저장 켜짐'; }, 2000);
-            } catch (err) {
-                autoSaveStatus.innerText = '저장 실패';
-            }
-        }
-
-        editor.addEventListener('input', () => {
-            updateCharCount();
-            ensureCursorVisible();
-            autoSaveStatus.innerText = '저장 중...';
-            if (autoSaveTimer) clearTimeout(autoSaveTimer);
-            autoSaveTimer = setTimeout(() => { executeAutoSave(); }, 1000);
-        });
-
-        editor.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                setTimeout(ensureCursorVisible, 10);
-            }
-
-            // 메모 박스 내부에서 Ctrl+A를 누를 경우 해당 메모박스 안의 텍스트만 선택되도록 처리
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-                const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
-                    let node = selection.anchorNode;
-                    let memoBox = node.nodeType === Node.TEXT_NODE ? node.parentElement.closest('.para-memo') : node.closest('.para-memo');
-                    if (memoBox) {
-                        e.preventDefault();
-                        const range = document.createRange();
-                        range.selectNodeContents(memoBox);
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                    }
-                }
-            }
-        });
-
-        // 파일 제목 수정 후 엔터 시 고정 모드 전환
-        fileNameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                commitTitleEdit();
-            }
-        });
-
-        fileNameInput.addEventListener('blur', () => {
-            commitTitleEdit();
-        });
-
-        function commitTitleEdit() {
-            let val = fileNameInput.value.trim() || 'untitled';
-            val = val.replace(/\.md$/, '');
-            fileNameInput.value = val;
-            fileTitleDisplay.innerText = val;
-            fileNameInput.classList.add('hidden');
-            fileTitleDisplay.classList.remove('hidden');
-            executeAutoSave();
-            loadFileList();
-        }
-
-        // 파일 제목 영역 우클릭 메뉴 처리
-        fileTitleDisplay.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            titleContextMenu.style.display = 'block';
-            titleContextMenu.style.left = e.pageX + 'px';
-            titleContextMenu.style.top = e.pageY + 'px';
-        });
-
-        document.getElementById('menu-edit-title-btn').addEventListener('click', () => {
-            titleContextMenu.style.display = 'none';
-            fileTitleDisplay.classList.add('hidden');
-            fileNameInput.classList.remove('hidden');
-            fileNameInput.focus();
-            fileNameInput.select();
-        });
-
-        // 수동 저장 버튼
-        document.getElementById('btn-save').addEventListener('click', async () => {
-            if (!dirHandle) {
-                alert('먼저 "저장 폴더 지정" 버튼을 눌러주세요.');
-                return;
-            }
-            await executeAutoSave();
-            await loadFileList();
-            alert('저장되었습니다.');
-        });
-
-        // TXT 내보내기 버튼 (메모 제외 및 줄바꿈 유지)
-        document.getElementById('btn-export-txt').addEventListener('click', async () => {
-            const rawName = fileNameInput.value.trim() || 'untitled';
-            const fileName = rawName.replace(/\.md$/, '') + '.txt';
-
-            const div = document.createElement('div');
-            div.innerHTML = editor.innerHTML;
-            div.querySelectorAll('.para-memo').forEach(m => m.remove());
-
-            function getCleanText(node) {
-                let result = '';
-                node.childNodes.forEach(child => {
-                    if (child.nodeType === Node.TEXT_NODE) {
-                        result += child.nodeValue;
-                    } else if (child.nodeType === Node.ELEMENT_NODE) {
-                        if (child.tagName === 'BR') {
-                            result += '\n';
-                        } else {
-                            let inner = getCleanText(child);
-                            if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI'].includes(child.tagName)) {
-                                if (inner.length > 0 && !inner.endsWith('\n')) {
-                                    inner += '\n';
-                                }
-                            }
-                            result += inner;
-                        }
-                    }
-                });
-                return result;
-            }
-
-            let cleanText = getCleanText(div).replace(/\n{3,}/g, '\n\n').trim();
-
-            if (dirHandle) {
-                try {
-                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(cleanText);
-                    await writable.close();
-                    alert(`연결된 폴더에 TXT 파일이 저장되었습니다:\n${fileName}`);
-                    return;
-                } catch (err) {
-                    console.error('폴더 내 TXT 저장 실패:', err);
-                }
-            }
-
-            const blob = new Blob([cleanText], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        });
-
-        // 외부 복사 시 줄바꿈 최적화
-        editor.addEventListener('copy', (e) => {
-            const selection = window.getSelection();
-            if (!selection.isCollapsed) {
-                e.preventDefault();
-                const range = selection.getRangeAt(0);
-                const div = document.createElement('div');
-                div.appendChild(range.cloneContents());
-                div.querySelectorAll('.para-memo').forEach(m => m.remove());
-
-                function getCleanText(node) {
-                    let result = '';
-                    node.childNodes.forEach(child => {
-                        if (child.nodeType === Node.TEXT_NODE) {
-                            result += child.nodeValue;
-                        } else if (child.nodeType === Node.ELEMENT_NODE) {
-                            if (child.tagName === 'BR') {
-                                result += '\n';
-                            } else {
-                                let inner = getCleanText(child);
-                                if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI'].includes(child.tagName)) {
-                                    if (inner.length > 0 && !inner.endsWith('\n')) {
-                                        inner += '\n';
-                                    }
-                                }
-                                result += inner;
-                            }
-                        }
-                    });
-                    return result;
-                }
-
-                let cleanText = getCleanText(div).replace(/\n{3,}/g, '\n\n').trim();
-                e.clipboardData.setData('text/plain', cleanText);
-            }
-        });
-
-        // 정렬 스위치: 커서가 있는 문단(또는 선택 문단)에 적용, 라벨은 현재 문단 정렬을 표시
-        const ALIGNS = [['justify', '양쪽', 'justifyFull'], ['left', '왼쪽', 'justifyLeft'], ['center', '가운데', 'justifyCenter'], ['right', '오른쪽', 'justifyRight']];
-        const btnAlign = document.getElementById('btn-align');
-        let alignIdx = 0;
-
-        btnAlign.addEventListener('mousedown', (e) => e.preventDefault()); // 에디터 선택 영역 유지
-        btnAlign.addEventListener('click', () => {
-            const sel = window.getSelection();
-            if (!sel.rangeCount || !editor.contains(sel.anchorNode)) editor.focus();
-            alignIdx = (alignIdx + 1) % ALIGNS.length;
-            document.execCommand(ALIGNS[alignIdx][2], false, null);
-            btnAlign.innerText = ALIGNS[alignIdx][1];
-            editor.focus();
-            executeAutoSave();
-        });
-
-        document.addEventListener('selectionchange', () => {
-            const sel = window.getSelection();
-            if (!sel.rangeCount || !editor.contains(sel.anchorNode)) return;
-            const block = getParentBlock(sel.anchorNode);
-            let ta = getComputedStyle(block || editor).textAlign;
-            if (ta === 'start') ta = 'left';
-            const i = ALIGNS.findIndex(a => a[0] === ta);
-            if (i >= 0) { alignIdx = i; btnAlign.innerText = ALIGNS[i][1]; }
-        });
-
-        // --- 뽀모도로 타이머 로직 ---
-        const pomoSidebar = document.getElementById('pomodoro-sidebar');
-        const btnTogglePomo = document.getElementById('btn-toggle-pomo');
-        const pomoControlBtn = document.getElementById('pomo-control-btn');
-        const pomoDisplay = document.getElementById('pomo-display');
-        const pomoLogsContainer = document.getElementById('pomo-logs');
-
-        btnTogglePomo.addEventListener('click', () => {
-            pomoVisible = !pomoVisible;
-            applyPomoVisibility();
-        });
-
-        function formatTime(secs) {
-            const m = Math.floor(secs / 60).toString().padStart(2, '0');
-            const s = (secs % 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
-        }
-
-        function updatePomoDisplay() {
-            const stateStr = pomoIsWork ? '작업중' : '휴식중';
-            pomoDisplay.innerText = `${stateStr} ${formatTime(pomoSeconds)}`;
-        }
-
-        pomoControlBtn.addEventListener('click', () => {
-            if (!pomoRunning) {
-                pomoRunning = true;
-                pomoControlBtn.innerText = '정지';
-                startPomoTimer();
-            } else {
-                pomoRunning = false;
-                pomoControlBtn.innerText = '시작';
-                clearInterval(pomoInterval);
-            }
-        });
-
-        function startPomoTimer() {
-            if (pomoInterval) clearInterval(pomoInterval);
-            pomoInterval = setInterval(async () => {
-                pomoSeconds--;
-                if (pomoSeconds < 0) {
-                    if (pomoIsWork) {
-                        // 작업 주기 종료 시점: 글자수 기록 생성 및 JSON 저장
-                        await recordPomoCompletion();
-                        // 휴식 전환 (5분)
-                        pomoIsWork = false;
-                        pomoSeconds = 5 * 60;
-                    } else {
-                        // 휴식 주기 종료 -> 작업 전환 (25분)
-                        pomoIsWork = true;
-                        pomoSeconds = 25 * 60;
-                    }
-                }
-                updatePomoDisplay();
-            }, 1000);
-        }
-
-        async function recordPomoCompletion() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const dateStr = `${year}-${month}-${day}`;
-            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-
-            // 글자수 계산 (메모 제외)
-            const clone = editor.cloneNode(true);
-            clone.querySelectorAll('.para-memo').forEach(m => m.remove());
-            const text = (clone.innerText || '').trim();
-            const withSpaces = text.length;
-            const withoutSpaces = text.replace(/\s/g, '').length;
-
-            const logEntry = {
-                date: dateStr,
-                time: timeStr,
-                withSpaces: withSpaces,
-                withoutSpaces: withoutSpaces
-            };
-
-            // 기존 로그 불러오기 및 추가
-            let allLogs = [];
-            if (dirHandle) {
-                try {
-                    const fileHandle = await dirHandle.getFileHandle('pomodoro_logs.json', { create: true });
-                    const file = await fileHandle.getFile();
-                    const textContent = await file.text();
-                    if (textContent.trim()) {
-                        allLogs = JSON.parse(textContent);
-                    }
-                } catch (e) {}
-
-                allLogs.push(logEntry);
-
-                try {
-                    const fileHandle = await dirHandle.getFileHandle('pomodoro_logs.json', { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(JSON.stringify(allLogs, null, 2));
-                    await writable.close();
-                } catch (e) {
-                    console.error('뽀모도로 로그 파일 저장 실패:', e);
-                }
-            }
-            renderPomoLogs(allLogs);
-        }
-
-        async function loadPomodoroLogs() {
-            if (!dirHandle) return;
-            try {
-                const fileHandle = await dirHandle.getFileHandle('pomodoro_logs.json');
-                const file = await fileHandle.getFile();
-                const textContent = await file.text();
-                if (textContent.trim()) {
-                    const allLogs = JSON.parse(textContent);
-                    renderPomoLogs(allLogs);
-                }
-            } catch (e) {
-                // 파일이 없으면 무시
-            }
-        }
-
-        function renderPomoLogs(allLogs) {
-            pomoLogsContainer.innerHTML = '';
-            // 날짜 상관없이 최근 기록 5개만 가져오기
-            const recentLogs = allLogs.slice(-5);
-            recentLogs.forEach(log => {
-                const div = document.createElement('div');
-                div.textContent = `${log.time} 공백포함글자수 ${log.withSpaces} (${log.withoutSpaces})`;
-                pomoLogsContainer.appendChild(div);
-            });
-        }
-
-        // --- 문단 잠금 및 기타 헬퍼 ---
-        function getParentBlock(node) {
-            if (!node) return null;
-            let block = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-            while (block && block.parentElement !== editor && block !== editor) {
-                block = block.parentElement;
-            }
-            return (block && block !== editor && editor.contains(block)) ? block : null;
-        }
-
-        function getNormalizedSelectionRange() {
-            const selection = window.getSelection();
-            if (!selection.rangeCount || selection.isCollapsed) return null;
-            let range = selection.getRangeAt(0).cloneRange();
-
-            if (range.endOffset === 0 && !range.collapsed) {
-                let container = range.endContainer;
-                try {
-                    if (container.nodeType === Node.TEXT_NODE) {
-                        if (container.previousSibling) {
-                            range.setEndAfter(container.previousSibling);
-                        } else if (container.parentNode && container.parentNode !== editor) {
-                            range.setEndBefore(container.parentNode);
-                        }
-                    } else if (container.nodeType === Node.ELEMENT_NODE) {
-                        let prev = container.previousElementSibling || container.previousSibling;
-                        if (prev) {
-                            range.setEndAfter(prev);
-                        }
-                    }
-                } catch (e) {}
-            }
-            return range;
-        }
-
-        document.getElementById('btn-unlock-all').addEventListener('click', () => {
-            const lockedBlocks = editor.querySelectorAll('.locked-paragraph, [contenteditable="false"]');
-            if (lockedBlocks.length === 0) {
-                alert('잠긴 문단이 없습니다.');
-                return;
-            }
-            lockedBlocks.forEach(block => {
-                if (block.classList.contains('para-memo')) return;
-                block.removeAttribute('contenteditable');
-                block.classList.remove('locked-paragraph');
-            });
-            updateCharCount();
-            executeAutoSave();
-            alert('모든 문단 잠금이 해제되었습니다.');
-        });
-
-        editor.addEventListener('contextmenu', (e) => {
-            const block = getParentBlock(e.target);
-            if (block && !e.target.classList.contains('para-memo')) {
-                e.preventDefault();
-                currentBlock = block;
-                
-                const isLocked = block.classList.contains('locked-paragraph') || block.getAttribute('contenteditable') === 'false';
-                const hasMemo = block.querySelector('.para-memo') !== null;
-
-                document.getElementById('menu-lock-toggle-btn').innerText = isLocked ? '🔓 잠금 해제' : '🔒 문단 잠금';
-                document.getElementById('menu-memo-toggle-btn').innerText = hasMemo ? '🗑️ 메모 삭제' : '📝 메모 추가';
-                
-                contextMenu.style.display = 'block';
-                contextMenu.style.left = e.pageX + 'px';
-                contextMenu.style.top = e.pageY + 'px';
-            } else {
-                contextMenu.style.display = 'none';
-            }
-        });
-
-        window.addEventListener('click', () => {
-            contextMenu.style.display = 'none';
-            titleContextMenu.style.display = 'none';
-        });
-
-        document.getElementById('menu-lock-toggle-btn').addEventListener('click', () => {
-            if (currentBlock) {
-                const isLocked = currentBlock.classList.contains('locked-paragraph') || currentBlock.getAttribute('contenteditable') === 'false';
-                
-                if (isLocked) {
-                    currentBlock.removeAttribute('contenteditable');
-                    currentBlock.classList.remove('locked-paragraph');
-                } else {
-                    currentBlock.setAttribute('contenteditable', 'false');
-                    currentBlock.classList.add('locked-paragraph');
-                }
-                updateCharCount();
-                executeAutoSave();
-            }
-            contextMenu.style.display = 'none';
-            currentBlock = null;
-        });
-
-        document.getElementById('menu-memo-toggle-btn').addEventListener('click', () => {
-            if (currentBlock) {
-                const existingMemo = currentBlock.querySelector('.para-memo');
-                if (existingMemo) {
-                    existingMemo.remove();
-                    currentBlock.classList.remove('has-memo');
-                } else {
-                    const memoSpan = document.createElement('span');
-                    memoSpan.className = 'para-memo';
-                    memoSpan.setAttribute('contenteditable', 'true');
-                    memoSpan.setAttribute('spellcheck', 'false');
-                    currentBlock.appendChild(memoSpan);
-                    currentBlock.classList.add('has-memo');
-                    memoSpan.focus();
-                }
-                updateCharCount();
-                executeAutoSave();
-            }
-            contextMenu.style.display = 'none';
-            currentBlock = null;
-        });
-    </script>
-</body>
-</html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+<title>집필기</title>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:13px system-ui,-apple-system,'Segoe UI',sans-serif;color:#111827;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+button,select,input{font:inherit}
+button{border:0;cursor:pointer}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;align-items:center;padding:10px 24px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:12px;user-select:none}
+.g{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.tb{padding:4px 10px;border-radius:4px;font-weight:500;white-space:nowrap;background:#e5e7eb;color:#374151}
+.tb:hover{background:#d1d5db}
+.sw{background:#e0f2fe;color:#075985}.sw:hover{background:#bae6fd}
+.tg{color:#6b7280}.tg.on{background:#d1fae5;color:#065f46}.tg.on:hover{background:#a7f3d0}
+.pri{background:#2563eb;color:#fff}.pri:hover{background:#1d4ed8}
+.exp{background:#059669;color:#fff}.exp:hover{background:#047857}
+.sep{width:1px;height:16px;background:#d1d5db}
+#fs,#ti{border:1px solid #d1d5db;border-radius:4px;padding:4px 8px;background:#fff;font-size:12px}
+#fs{width:130px}#ti{width:120px;font-size:14px;font-weight:500}
+#tt{padding:4px 8px;border:1px solid transparent;border-radius:4px;font-size:14px;font-weight:500;cursor:pointer}
+#tt:hover{border-color:#d1d5db}
+#st{color:#9ca3af;font-size:11px}
+.hide{display:none!important}
+#area{flex:1;position:relative;overflow:hidden}
+#main{position:absolute;inset:0;overflow-y:auto}
+#wrap{min-height:100%;padding:48px 24px;transition:padding .2s}
+#ed{outline:none;text-align:justify;padding-bottom:50vh;min-height:60vh;word-break:break-word}
+#ed:empty:before{content:"여기에 글을 작성하세요...";color:#9ca3af;pointer-events:none}
+#ed div,#ed p{position:relative;margin:0}
+#ed.gap>div,#ed.gap>p{margin-bottom:1em}
+#ed.ind,#ed.ind div,#ed.ind p{text-indent:1em}
+#ed .memo{text-indent:0!important}
+.lk{background:#e5e7eb;padding:2px 6px;border-radius:4px;user-select:text}
+.memo{position:absolute;left:calc(100% + 1.5rem);top:0;width:300px;display:inline-block;background:#f1f3f5;padding:2px 12px;border-radius:4px;font-size:.85rem;line-height:1.4;text-align:left;font-family:system-ui,sans-serif;outline:none;z-index:10;user-select:none;-webkit-user-select:none}
+.memo[contenteditable=true]{user-select:text;-webkit-user-select:text}
+.memo:before{content:"";position:absolute;left:-1rem;top:.8em;width:1rem;height:1px;background:#cbd5e1}
+#pomo{position:absolute;left:0;top:0;bottom:0;width:256px;padding:16px 16px 56px;flex-direction:column;justify-content:space-between;z-index:20;pointer-events:none;user-select:none;font-size:12px}
+#pomo button{pointer-events:auto;padding:4px 12px;border-radius:4px;background:#e5e7eb;color:#374151;font-weight:500}
+#pl{color:#6b7280;font-size:11px;display:grid;gap:4px}
+footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);border-top:1px solid #e5e7eb;padding:8px 24px;color:#6b7280;font-size:12px;text-align:right;user-select:none;z-index:40}
+.menu{display:none;position:absolute;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 8px rgba(0,0,0,.1);padding:4px;z-index:10000;font-size:12px}
+.menu button{display:block;width:100%;text-align:left;padding:6px 12px;background:none;border-radius:4px;color:#374151}
+.menu button:hover{background:#f3f4f6}
+#gate{position:fixed;inset:0;background:#fff;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center}
+#gate p{max-width:440px;line-height:1.7;font-size:15px;margin:0}
+</style></head><body>
+<div id="gate" class="hide">
+ <p>원고를 안전하게 보관하기 위해 저장 폴더를 선택하고 권한을 허용해주세요.<br><small style="color:#6b7280">브라우저 데이터를 삭제하면 폴더 연결이 끊어질 수 있습니다. 같은 폴더를 다시 연결하면 원고가 그대로 불러와집니다.</small></p>
+ <button id="gb2" class="tb pri hide" style="padding:10px 20px">이전 폴더 다시 연결</button>
+ <button id="gb1" class="tb pri" style="padding:10px 20px">저장 폴더 선택하기</button>
+</div>
+<div id="cm" class="menu"><button id="mlock"></button><button id="mmemo"></button></div>
+<div id="tm" class="menu"><button id="mren">✏️ 이름 수정</button></div>
+<header>
+ <div class="g">
+  <button id="bd" class="tb">폴더 변경</button>
+  <select id="fs"></select>
+  <span id="tt" title="우클릭 또는 더블클릭하여 이름 수정">untitled</span><input id="ti" class="hide">
+  <button id="bs" class="tb pri">저장</button>
+  <button id="bx" class="tb exp">내보내기</button>
+  <span id="st">폴더 미지정</span>
+ </div>
+ <div class="g">
+  <button id="bf" class="tb sw" title="글씨체">굴림체</button><span class="sep"></span>
+  <button id="ba" class="tb sw" title="커서가 있는 문단 정렬">양쪽</button>
+  <button id="bl" class="tb sw">줄간격 1.6</button>
+  <button id="bi" class="tb tg">들여쓰기</button>
+  <button id="bp" class="tb tg">문단간격</button><span class="sep"></span>
+  <button id="bm" class="tb sw">여백 중간</button>
+  <button id="bv" class="tb tg on">뽀모</button><span class="sep"></span>
+  <button id="bu" class="tb">🔓 전체 잠금 해제</button>
+ </div>
+</header>
+<div id="area">
+ <aside id="pomo"><div><button id="pb">시작</button> <b id="pd" style="margin-left:6px;color:#374151">작업중 25:00</b></div><div id="pl"></div></aside>
+ <main id="main"><div id="wrap"><div id="ed" contenteditable="true" spellcheck="false"></div></div></main>
+</div>
+<footer id="cc">글자수 0 (0)</footer>
+<script>
+const $=i=>document.getElementById(i),ed=$('ed'),main=$('main'),wrap=$('wrap'),st=$('st'),cm=$('cm'),tm=$('tm');
+const FONTS=[['굴림체',"Gulim,'굴림',sans-serif"],['돋움체',"Dotum,'돋움',sans-serif"],['바탕체',"Batang,'바탕',serif"]],
+ FK=['gulim','dodum','batang'],LK=['tight','normal','loose'],LEAD=[1.3,1.6,2],MARG=['없음','좁음','중간','넓음'],MW=[0,1024,768,576],
+ AL=[['justify','양쪽','justifyFull'],['left','왼쪽','justifyLeft'],['center','가운데','justifyCenter'],['right','오른쪽','justifyRight']],
+ BLK=['DIV','P','H1','H2','H3','H4','H5','H6','LI','UL','OL','BLOCKQUOTE','PRE'];
+let S={font:0,lead:1,indent:0,para:0,margin:2},dir=null,saved=null,name='untitled',dirty=false,saving=false,again=false,saveT=0,lastSave=Date.now(),
+ pomoOn=true,editing=null,alignI=0,cur=[],P={run:false,work:true,left:1500,end:0},statT=0;
+
+/* ---------- 공통 ---------- */
+const say=m=>{st.textContent=m;clearTimeout(statT);statT=setTimeout(()=>st.textContent=dir?'자동저장 켜짐':'폴더 미지정',2500)};
+const safe=n=>(n||'').replace(/\.(md|txt)$/i,'').replace(/[\\/:*?"<>|]/g,'_').trim()||'untitled';
+const blockOf=n=>{if(!n)return null;let b=n.nodeType===3?n.parentElement:n;while(b&&b.parentElement!==ed&&b!==ed)b=b.parentElement;return b&&b!==ed&&ed.contains(b)?b:null};
+const inMemo=n=>{n=n&&(n.nodeType===3?n.parentElement:n);return n&&n.closest?n.closest('.memo'):null};
+const selMemo=()=>{const s=getSelection();return s.rangeCount?inMemo(s.anchorNode):null};
+const locked=b=>b.classList.contains('lk');
+/* 메모 제외 텍스트 (글자수·복사·내보내기 공용) */
+function txt(n){let s='';for(const c of n.childNodes){if(c.nodeType===3)s+=c.nodeValue;else if(c.nodeType===1&&!c.classList.contains('memo')){if(c.tagName==='BR')s+='\n';else{s+=txt(c);if(BLK.includes(c.tagName)&&s&&!s.endsWith('\n'))s+='\n'}}}return s}
+const plain=n=>txt(n).replace(/\n{3,}/g,'\n\n').trim();
+
+/* ---------- 폴더/파일 IO ---------- */
+const idb=(m,v)=>new Promise(r=>{const q=indexedDB.open('TdtdAppDB',1);q.onupgradeneeded=()=>q.result.createObjectStore('handles');q.onerror=()=>r(null);
+ q.onsuccess=()=>{const o=q.result.transaction('handles',m==='get'?'readonly':'readwrite').objectStore('handles'),x=m==='get'?o.get('savedDirHandle'):o.put(v,'savedDirHandle');x.onsuccess=()=>r(x.result);x.onerror=()=>r(null)}});
+async function put(f,d){const h=await dir.getFileHandle(f,{create:true}),w=await h.createWritable();await w.write(d);await w.close()}
+async function get(f){try{return await(await(await dir.getFileHandle(f)).getFile()).text()}catch(e){return null}}
+
+/* ---------- 불러오기 보안: 허용된 태그/속성만 남김 ---------- */
+function clean(html){
+ const d=new DOMParser().parseFromString(html,'text/html'),out=document.createElement('div');
+ (function walk(src,dst){for(const n of src.childNodes){
+  if(n.nodeType===3){dst.append(n.nodeValue);continue}
+  if(n.nodeType!==1)continue;
+  const t=n.tagName;if(t==='SCRIPT'||t==='STYLE'||t==='IFRAME'||t==='OBJECT'||t==='EMBED')continue;
+  if(!['DIV','P','BR','SPAN','B','I','U','STRONG','EM'].includes(t)&&!BLK.includes(t)){walk(n,dst);continue}
+  const e=document.createElement(BLK.includes(t)&&t!=='DIV'&&t!=='P'?'DIV':t.toLowerCase());
+  const m=n.classList.contains('para-memo')||n.classList.contains('memo');
+  if(m){e.className='memo';e.setAttribute('contenteditable','false')}
+  else if(n.classList.contains('locked-paragraph')||n.classList.contains('lk')){e.className='lk';e.setAttribute('contenteditable','false')}
+  else if(n.classList.contains('has-memo'))e.className='has-memo';
+  const a=/text-align:\s*(left|right|center|justify)/.exec(n.getAttribute('style')||'');if(a&&!m)e.style.textAlign=a[1];
+  if(t!=='BR')walk(n,e);dst.append(e)}})(d.body,out);
+ return out}
+function load(html){ed.replaceChildren(...clean(html).childNodes);editing=null;refresh(true)}
+
+/* ---------- 레이아웃 ---------- */
+function layout(){
+ const W=main.clientWidth;if(!W)return;
+ const pn=pomoOn?256:0,mn=ed.querySelector('.memo')?340:0;let l,r;
+ if(!S.margin){l=Math.max(24,pn);r=Math.max(24,mn)}
+ else{const side=Math.max(24,pn,mn);let w=Math.min(MW[S.margin],W-2*side);w=Math.max(w,Math.min(320,W-48));l=r=Math.max(24,(W-w)/2)}
+ wrap.style.paddingLeft=l+'px';wrap.style.paddingRight=r+'px'}
+new ResizeObserver(layout).observe(main);
+function syncMemos(){
+ ed.querySelectorAll('.has-memo').forEach(b=>{if(!b.querySelector(':scope>.memo')){b.classList.remove('has-memo');b.style.minHeight=''}});
+ ed.querySelectorAll('.memo').forEach(m=>{const b=m.parentElement;if(!b||b===ed)return;b.classList.add('has-memo');
+  const mb=parseFloat(getComputedStyle(b).marginBottom)||0;b.style.minHeight=Math.max(0,Math.ceil(m.offsetHeight-mb))+'px'});
+ ed.querySelectorAll('.memo').forEach(m=>{if(m!==editing)m.setAttribute('contenteditable','false')})}
+let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim();
+ $('cc').textContent='글자수 '+t.length.toLocaleString()+' ('+t.replace(/\s/g,'').length.toLocaleString()+')';layout()};now?f():rT=setTimeout(f,200)}
+function keepVisible(){
+ const s=getSelection();if(!s.rangeCount)return;let b=s.getRangeAt(0).getBoundingClientRect();
+ if(!b.height){const k=blockOf(s.anchorNode);if(!k)return;b=k.getBoundingClientRect()}
+ const c=main.getBoundingClientRect();
+ if(b.bottom>c.bottom-150)main.scrollTop+=b.bottom-(c.bottom-150);else if(b.top<c.top+20)main.scrollTop-=c.top+20-b.top}
+
+/* ---------- UI/설정 ---------- */
+function ui(){
+ ed.style.fontFamily=FONTS[S.font][1];ed.style.lineHeight=LEAD[S.lead];ed.classList.toggle('ind',!!S.indent);ed.classList.toggle('gap',!!S.para);
+ $('bf').textContent=FONTS[S.font][0];$('bl').textContent='줄간격 '+LEAD[S.lead].toFixed(1);$('bm').textContent='여백 '+MARG[S.margin];
+ $('bi').classList.toggle('on',!!S.indent);$('bp').classList.toggle('on',!!S.para);$('bv').classList.toggle('on',pomoOn);
+ $('pomo').style.display=pomoOn?'flex':'none';layout();syncMemos()}
+async function persist(){
+ const o={font:FK[S.font],indent:!!S.indent,leading:LK[S.lead],para:!!S.para,margin:S.margin};
+ try{localStorage.setItem('tdtd_app_settings',JSON.stringify(o))}catch(e){}
+ if(dir)try{await put('settings.json',JSON.stringify(o))}catch(e){}}
+function applySettings(o){if(!o)return;
+ S.font=Math.max(0,FK.indexOf(o.font));S.lead=LK.indexOf(o.leading)<0?1:LK.indexOf(o.leading);S.indent=o.indent?1:0;S.para=o.para?1:0;
+ S.margin=Number.isInteger(o.margin)&&o.margin>=0&&o.margin<4?o.margin:2}
+const cyc=(k,n)=>()=>{S[k]=(S[k]+1)%n;ui();persist()};
+$('bf').onclick=cyc('font',3);$('bl').onclick=cyc('lead',3);$('bm').onclick=cyc('margin',4);
+$('bi').onclick=()=>{S.indent^=1;ui();persist()};$('bp').onclick=()=>{S.para^=1;ui();persist()};
+$('bv').onclick=()=>{pomoOn=!pomoOn;ui()};
+/* 정렬: 커서 문단에 적용, 라벨은 현재 문단 기준 */
+$('ba').onmousedown=e=>e.preventDefault();
+$('ba').onclick=()=>{const s=getSelection();if(!s.rangeCount||!ed.contains(s.anchorNode))ed.focus();
+ alignI=(alignI+1)%4;document.execCommand(AL[alignI][2]);$('ba').textContent=AL[alignI][1];ed.focus();input()};
+let aT=0;document.addEventListener('selectionchange',()=>{if(aT)return;aT=requestAnimationFrame(()=>{aT=0;const s=getSelection();
+ if(!s.rangeCount||!ed.contains(s.anchorNode))return;let a=getComputedStyle(blockOf(s.anchorNode)||ed).textAlign;if(a==='start')a='left';
+ const i=AL.findIndex(x=>x[0]===a);if(i>=0){alignI=i;$('ba').textContent=AL[i][1]}})});
+
+/* ---------- 저장 ---------- */
+function draft(){try{localStorage.setItem('tdtd_draft',JSON.stringify({name,html:ed.innerHTML}))}catch(e){}}
+async function save(){
+ if(!dir){draft();return}
+ if(saving){again=true;return}
+ saving=true;clearTimeout(saveT);
+ try{const html=ed.innerHTML;await put(name+'.md',html);lastSave=Date.now();if(html===ed.innerHTML){dirty=false;localStorage.removeItem('tdtd_draft')}
+  localStorage.setItem('tdtd_last_file',name+'.md');say('저장됨')}
+ catch(e){say('저장 실패 — 재시도 중');draft();saveT=setTimeout(save,5000)}
+ finally{saving=false;if(again){again=false;save()}}}
+const flush=async()=>{if(dirty){clearTimeout(saveT);while(saving)await new Promise(r=>setTimeout(r,50));await save()}};
+function input(){
+ dirty=true;st.textContent='저장 중...';refresh();requestAnimationFrame(keepVisible);
+ clearTimeout(saveT);saveT=setTimeout(()=>{draft();save()},1000);
+ if(Date.now()-lastSave>15000){draft();save()}}
+ed.addEventListener('input',()=>{ensure();input()});
+addEventListener('pagehide',()=>{if(dirty)draft()});
+addEventListener('beforeunload',e=>{if(dirty){draft();e.preventDefault();e.returnValue=''}});
+$('bs').onclick=async()=>{if(!dir)return say('먼저 저장 폴더를 지정해주세요');dirty=true;await save();await list()};
+async function list(){
+ const f=$('fs');f.innerHTML='<option value="">파일 목록</option><option value="+">＋ 새 파일</option>';
+ if(!dir)return;const a=[];for await(const e of dir.values())if(e.kind==='file'&&e.name.endsWith('.md'))a.push(e.name);
+ a.sort((x,y)=>x.localeCompare(y,'ko')).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n.slice(0,-3);f.appendChild(o)});f.value=''}
+function setName(n){name=n;$('tt').textContent=n;$('ti').value=n}
+$('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();
+ if(v==='+'){const have=new Set([...$('fs').options].map(o=>o.value));let n='untitled',i=2;while(have.has(n+'.md'))n='untitled-'+i++;
+  setName(n);ed.replaceChildren();refresh(true);dirty=true;await save();return list()}
+ const t=await get(v);if(t===null)return say('파일 읽기 실패');setName(v.slice(0,-3));load(t);try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
+ dirty=false;ed.focus()};
+/* 파일명 변경: 새 이름으로 저장 후 이전 파일 삭제 (같은 이름이 있으면 중단) */
+function editTitle(){tm.style.display='none';$('tt').classList.add('hide');$('ti').classList.remove('hide');$('ti').focus();$('ti').select()}
+async function commitTitle(){const ti=$('ti');if(ti.classList.contains('hide'))return;ti.classList.add('hide');$('tt').classList.remove('hide');
+ const n=safe(ti.value);ti.value=name;if(n===name)return;
+ if(dir){if(await get(n+'.md')!==null)return say('이미 같은 이름의 파일이 있습니다');
+  const old=name;await flush();setName(n);dirty=true;await save();try{await dir.removeEntry(old+'.md')}catch(e){}await list()}else setName(n)}
+$('tt').oncontextmenu=e=>{e.preventDefault();tm.style.display='block';tm.style.left=e.pageX+'px';tm.style.top=e.pageY+'px'};
+$('tt').ondblclick=editTitle;$('mren').onclick=editTitle;$('ti').onblur=commitTitle;
+$('ti').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commitTitle()}else if(e.key==='Escape'){$('ti').value=name;commitTitle()}};
+$('bx').onclick=async()=>{const f=name+'.txt',t=plain(ed);
+ if(dir)try{await put(f,t);return say('내보냄: '+f)}catch(e){}
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/plain;charset=utf-8'}));a.download=f;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+
+/* ---------- 입력/복사/붙여넣기 ---------- */
+ed.addEventListener('keydown',e=>{
+ const m=selMemo();
+ if(m&&e.key==='Enter'&&!e.isComposing){e.preventDefault();document.execCommand('insertLineBreak')}   // 메모 안 줄바꿈(문단 분할 방지)
+ else if(m&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();const r=document.createRange();r.selectNodeContents(m);const s=getSelection();s.removeAllRanges();s.addRange(r)}});
+ed.addEventListener('paste',e=>{e.preventDefault();let t=e.clipboardData.getData('text/plain')||'';if(selMemo())t=t.replace(/\r?\n/g,' ');document.execCommand('insertText',false,t.replace(/\r/g,''))});
+ed.addEventListener('copy',e=>{const s=getSelection();if(s.isCollapsed)return;e.preventDefault();const d=document.createElement('div');d.appendChild(s.getRangeAt(0).cloneContents());e.clipboardData.setData('text/plain',plain(d))});
+ed.addEventListener('mousedown',e=>setEditing(e.target.closest&&e.target.closest('.memo')));
+ed.addEventListener('focusout',e=>{const m=inMemo(e.target);if(m&&m===editing&&!(e.relatedTarget&&m.contains(e.relatedTarget)))setEditing(null)});
+function setEditing(m){if(editing&&editing!==m)editing.setAttribute('contenteditable','false');editing=m;if(m)m.setAttribute('contenteditable','true')}
+
+/* ---------- 문단 잠금 / 메모 (우클릭) ---------- */
+function ensure(){ // 에디터 직속 맨 텍스트를 <div>로 감싸 문단 단위로 다룸
+ if(![...ed.childNodes].some(n=>n.nodeType===3&&n.nodeValue.trim()))return;
+ const s=getSelection(),r=s.rangeCount?s.getRangeAt(0):null,sv=r&&[r.startContainer,r.startOffset,r.endContainer,r.endOffset];let run=[];
+ const fl=()=>{if(run.some(n=>n.nodeType!==3||n.nodeValue.trim())){const d=document.createElement('div');run[0].before(d);d.append(...run)}run=[]};
+ [...ed.childNodes].forEach(n=>{n.nodeType===1&&BLK.includes(n.tagName)?fl():run.push(n)});fl();
+ if(sv)try{const q=document.createRange();q.setStart(sv[0],sv[1]);q.setEnd(sv[2],sv[3]);s.removeAllRanges();s.addRange(q)}catch(e){}}
+function selBlocks(){
+ const s=getSelection();if(!s.rangeCount||s.isCollapsed)return[];const r=s.getRangeAt(0);if(!ed.contains(r.commonAncestorContainer))return[];
+ const a=[...ed.children].filter(b=>BLK.includes(b.tagName)&&r.intersectsNode(b));
+ if(a.length>1){const l=a[a.length-1],p=document.createRange();p.setStart(l,0);p.setEnd(r.endContainer,r.endOffset);if(l.contains(r.endContainer)&&!p.toString())a.pop()}
+ return a}
+ed.addEventListener('contextmenu',e=>{
+ if(e.target.closest&&e.target.closest('.memo')){cm.style.display='none';return}
+ ensure();let b=selBlocks();const multi=b.length>1;
+ if(!multi){const k=blockOf(e.target);if(!k){cm.style.display='none';return}b=[k]}
+ e.preventDefault();cur=b;
+ $('mlock').textContent=b.every(locked)?'🔓 잠금 해제':'🔒 문단 잠금';
+ $('mmemo').style.display=multi?'none':'block';   // 메모는 문단 단위 → 여러 문단이면 숨김
+ if(!multi)$('mmemo').textContent=b[0].querySelector(':scope>.memo')?'🗑️ 메모 삭제':'📝 메모 추가';
+ cm.style.display='block';cm.style.left=e.pageX+'px';cm.style.top=e.pageY+'px'});
+addEventListener('click',()=>{cm.style.display='none';tm.style.display='none'});
+$('mlock').onclick=()=>{const un=cur.every(locked);
+ cur.forEach(b=>{if(un){b.removeAttribute('contenteditable');b.classList.remove('lk')}else{b.setAttribute('contenteditable','false');b.classList.add('lk')}});
+ if(cur.length>1)getSelection().removeAllRanges();cur=[];refresh();input()};
+$('mmemo').onclick=()=>{const b=cur[0];cur=[];if(!b)return;const old=b.querySelector(':scope>.memo');
+ if(old){old.remove();refresh(true);return input()}
+ const m=document.createElement('span');m.className='memo';m.setAttribute('spellcheck','false');b.appendChild(m);setEditing(m);refresh(true);
+ m.focus();const r=document.createRange();r.selectNodeContents(m);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);input()};
+$('bu').onclick=()=>{const a=[...ed.querySelectorAll('.lk')];if(!a.length)return say('잠긴 문단이 없습니다');
+ a.forEach(b=>{b.removeAttribute('contenteditable');b.classList.remove('lk')});refresh();input();say('모든 문단 잠금 해제')};
+
+/* ---------- 뽀모도로 (시작 시각 기준 → 백그라운드에서도 정확) ---------- */
+const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+const pshow=()=>$('pd').textContent=(P.work?'작업중 ':'휴식중 ')+fmt(Math.max(0,P.left));
+$('pb').onclick=()=>{P.run=!P.run;if(P.run)P.end=Date.now()+P.left*1000;$('pb').textContent=P.run?'정지':'시작'};
+setInterval(async()=>{if(!P.run)return;P.left=Math.ceil((P.end-Date.now())/1000);
+ if(P.left<=0){if(P.work){P.work=false;P.left=300;P.end=Date.now()+300000;await record()}else{P.work=true;P.left=1500;P.end=Date.now()+1500000}}pshow()},500);
+async function record(){
+ const n=new Date(),p=x=>String(x).padStart(2,'0'),t=txt(ed).trim();
+ const e={date:`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,withSpaces:t.length,withoutSpaces:t.replace(/\s/g,'').length};
+ let a=[];if(dir){try{a=JSON.parse(await get('pomodoro_logs.json')||'[]')}catch(x){a=[]}a.push(e);try{await put('pomodoro_logs.json',JSON.stringify(a,null,2))}catch(x){}}else a=[e];
+ logs(a)}
+function logs(a){$('pl').replaceChildren(...a.slice(-5).map(l=>{const d=document.createElement('div');d.textContent=`${l.time} 공백포함글자수 ${l.withSpaces} (${l.withoutSpaces})`;return d}))}
+
+/* ---------- 시작 ---------- */
+async function init(){
+ $('gate').classList.add('hide');say('자동저장 켜짐');await list();
+ const s=await get('settings.json');if(s)try{applySettings(JSON.parse(s))}catch(e){}ui();
+ const l=await get('pomodoro_logs.json');if(l)try{logs(JSON.parse(l))}catch(e){}
+ const last=localStorage.getItem('tdtd_last_file'),t=last&&await get(last);
+ if(t!==null&&t!==undefined&&last){setName(last.slice(0,-3));load(t)}
+ try{const d=JSON.parse(localStorage.getItem('tdtd_draft')||'null');   // 저장되지 못한 내용 복구
+  if(d&&d.name===name&&d.html&&confirm('저장되지 않은 내용이 남아 있습니다. 복구할까요?')){load(d.html);dirty=true;save()}}catch(e){}
+}
+async function pick(){try{dir=await showDirectoryPicker({mode:'readwrite'});await idb('put',dir);await init()}catch(e){}}
+$('gb1').onclick=pick;$('bd').onclick=async()=>{await flush();pick()};
+$('gb2').onclick=async()=>{try{if(await saved.requestPermission({mode:'readwrite'})==='granted'){dir=saved;await init()}}catch(e){}};
+(async()=>{
+ try{applySettings(JSON.parse(localStorage.getItem('tdtd_app_settings')||'null'))}catch(e){}ui();
+ saved=await idb('get');
+ if(saved&&await saved.queryPermission({mode:'readwrite'})==='granted'){dir=saved;return init()}
+ $('gate').classList.remove('hide');if(saved)$('gb2').classList.remove('hide')})();
+</script></body></html>
