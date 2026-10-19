@@ -22,10 +22,7 @@
             position: relative;
         }
 
-        /* 메모가 있는 문단에 충분한 최소 높이를 주어 겹침 및 여백 방지 */
-        #editor p.has-memo, #editor div.has-memo {
-            min-height: 4.5rem;
-        }
+        /* 메모가 있는 문단의 최소 높이는 syncMemoHeights()가 메모 높이에 맞춰 계산 */
 
         /* 우측 여백 메모 박스 (span 태그 기반, 300px 넉넉한 너비, 첫줄 나란히 정렬) */
         .para-memo {
@@ -34,7 +31,7 @@
             top: 0;
             width: 300px;
             background-color: #f1f3f5;
-            padding: 8px 12px;
+            padding: 2px 12px;
             border-radius: 4px;
             font-size: 0.85rem;
             line-height: 1.4;
@@ -49,9 +46,9 @@
         .para-memo::before {
             content: "";
             position: absolute;
-            left: -1.5rem;
+            left: -1rem;
             top: 0.8em;
-            width: 1.5rem;
+            width: 1rem;
             height: 1px;
             background-color: #cbd5e1;
         }
@@ -90,6 +87,17 @@
             pointer-events: none;
             display: block;
         }
+        /* 상단 버튼 공통 스타일 */
+        .tb { padding: 4px 10px; border-radius: 4px; font-weight: 500; white-space: nowrap; transition: background-color .15s, color .15s; }
+        .tb-neutral { background: #e5e7eb; color: #374151; }
+        .tb-neutral:hover { background: #d1d5db; }
+        .tb-switch { background: #e0f2fe; color: #075985; }   /* 값 순환 스위치: 연한 파랑 */
+        .tb-switch:hover { background: #bae6fd; }
+        .tb-toggle { background: #e5e7eb; color: #6b7280; }   /* on/off: 회색 */
+        .tb-toggle:hover { background: #d1d5db; }
+        .tb-toggle.on { background: #d1fae5; color: #065f46; } /* on/off: 연한 초록 */
+        .tb-toggle.on:hover { background: #a7f3d0; }
+        .tb-sep { width: 1px; height: 16px; background: #d1d5db; margin: 0 4px; }
         /* 폰트 스타일 */
         .font-sans-system { font-family: system-ui, -apple-system, sans-serif; }
         .font-gulim { font-family: 'Gulim', '굴림', sans-serif; }
@@ -97,9 +105,11 @@
         .font-batang { font-family: 'Batang', '바탕', serif; }
 
         /* 들여쓰기 (1em) */
-        .indent-on p, .indent-on div {
-            text-indent: 1em;
+        #editor.indent-on, #editor.indent-on p, #editor.indent-on div, #editor.indent-on li,
+        #editor.indent-on h1, #editor.indent-on h2, #editor.indent-on h3 {
+            text-indent: 1em !important;
         }
+        #editor.indent-on .para-memo { text-indent: 0 !important; }
 
         /* 줄간격 */
         .leading-tight-custom { line-height: 1.3; }
@@ -139,66 +149,52 @@
     </div>
 
     <div id="app-screen" class="flex flex-col h-full">
-        <header class="flex items-center justify-between px-6 py-3 border-b border-gray-200 text-xs select-none bg-gray-50 flex-wrap gap-2 flex-shrink-0">
-            <div class="flex items-center gap-2">
-                <button id="btn-folder" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-medium text-gray-700">저장 폴더 지정</button>
-                
-                <!-- 파일 불러오기 드롭다운 -->
+        <header class="flex items-center justify-between px-6 py-2.5 border-b border-gray-200 text-xs select-none bg-gray-50 flex-wrap gap-x-4 gap-y-2 flex-shrink-0">
+            <!-- 파일 -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <button id="btn-folder" class="tb tb-neutral">폴더 변경</button>
+
                 <select id="file-select" class="border border-gray-300 rounded px-2 py-1 bg-white text-xs outline-none focus:border-blue-500 w-32" title="저장된 파일 불러오기">
                     <option value="">파일 목록</option>
                 </select>
 
-                <!-- 파일 이름 영역 (.md 감추기 및 우클릭 수정 지원) -->
                 <div id="file-title-wrapper" class="relative flex items-center">
                     <span id="file-title-display" class="border border-transparent hover:border-gray-300 rounded px-2 py-1 bg-transparent text-sm font-medium cursor-pointer" title="우클릭하여 이름 수정">untitled</span>
                     <input type="text" id="file-name" value="untitled" class="border border-gray-300 rounded px-2 py-1 bg-white text-sm font-medium outline-none focus:border-blue-500 w-28 hidden" title="파일 이름">
                 </div>
 
-                <button id="btn-save" class="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded font-medium">수동저장</button>
-                <button id="btn-export-txt" class="px-2.5 py-1 bg-emerald-600 text-white hover:bg-emerald-700 rounded font-medium">TXT 내보내기</button>
+                <button id="btn-save" class="tb bg-blue-600 text-white hover:bg-blue-700">저장</button>
+                <button id="btn-export-txt" class="tb bg-emerald-600 text-white hover:bg-emerald-700">내보내기</button>
                 <span id="auto-save-status" class="text-gray-400 text-[11px] ml-1">폴더 미지정</span>
             </div>
 
+            <!-- 서식 / 화면 -->
             <div class="flex items-center gap-2 flex-wrap">
-                <button id="btn-toggle-pomo" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">뽀모 숨기기</button>
-                
-                <select id="select-font" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
-                    <option value="system">기본 고딕</option>
-                    <option value="gulim">굴림체</option>
-                    <option value="dodum">돋움체</option>
-                    <option value="batang">바탕체</option>
-                </select>
-
-                <select id="select-align" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
-                    <option value="justify">정렬: 양쪽</option>
-                    <option value="left">정렬: 왼쪽</option>
-                    <option value="center">정렬: 가운데</option>
-                    <option value="right">정렬: 오른쪽</option>
-                </select>
-
-                <button id="btn-indent" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">들여쓰기: 끔</button>
-
-                <select id="select-leading" class="border border-gray-300 rounded px-2 py-1 bg-white outline-none">
-                    <option value="normal">줄간격: 보통(1.6)</option>
-                    <option value="tight">줄간격: 좁게(1.3)</option>
-                    <option value="loose">줄간격: 넓게(2.0)</option>
-                </select>
-
-                <button id="btn-para" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">문단간격: 없음</button>
-                <button id="btn-margin" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">여백: 중간</button>
-                
-                <button id="btn-lock" class="px-2 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded font-medium">🔒 문단 잠금</button>
-                <button id="btn-unlock-all" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 font-medium">🔓 전체 잠금 해제</button>
+                <!-- 글자 -->
+                <button id="btn-font" class="tb tb-switch" title="글씨체 전환">굴림체</button>
+                <!-- 문단 -->
+                <span class="tb-sep"></span>
+                <button id="btn-align" class="tb tb-switch" title="선택한 문단 정렬 전환">양쪽</button>
+                <button id="btn-leading" class="tb tb-switch" title="줄간격 전환">줄간격 1.6</button>
+                <button id="btn-indent" class="tb tb-toggle" title="들여쓰기 켜기/끄기">들여쓰기</button>
+                <button id="btn-para" class="tb tb-toggle" title="문단간격 켜기/끄기">문단간격</button>
+                <!-- 화면 배치 -->
+                <span class="tb-sep"></span>
+                <button id="btn-margin" class="tb tb-switch" title="여백 전환">여백 중간</button>
+                <button id="btn-toggle-pomo" class="tb tb-toggle on" title="뽀모 보이기/숨기기">뽀모</button>
+                <!-- 잠금 -->
+                <span class="tb-sep"></span>
+                <button id="btn-unlock-all" class="tb tb-neutral">🔓 전체 잠금 해제</button>
             </div>
         </header>
 
         <!-- 메인 집필 화면 (왼쪽 여백 뽀모도로 + 중앙 본문 영역) -->
         <div class="flex-1 flex overflow-hidden relative">
             <!-- 왼쪽 여백 뽀모도로 타이머 패널 (선 없음, 하단에 최근 기록 5줄 배치) -->
-            <aside id="pomodoro-sidebar" class="w-64 bg-white p-4 flex flex-col justify-between text-xs select-none flex-shrink-0">
+            <aside id="pomodoro-sidebar" class="absolute left-0 top-0 bottom-0 w-64 p-4 pb-14 flex flex-col justify-between text-xs select-none z-20 pointer-events-none">
                 <div class="space-y-2">
                     <div class="flex items-center gap-2">
-                        <button id="pomo-control-btn" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 font-medium">시작</button>
+                        <button id="pomo-control-btn" class="pointer-events-auto px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 font-medium">시작</button>
                         <span id="pomo-display" class="text-gray-700 font-medium">작업중 25:00</span>
                     </div>
                 </div>
@@ -209,8 +205,8 @@
 
             <!-- 본문 영역 스크롤바 -->
             <main id="main-container" class="flex-1 overflow-y-auto w-full transition-all duration-300">
-                <div id="content-wrapper" class="max-w-3xl mx-auto px-6 py-12 w-full min-h-full flex flex-col">
-                    <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-sans-system leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
+                <div id="content-wrapper" class="w-full min-h-full flex flex-col py-12" style="padding-left:24px;padding-right:24px;transition:padding .2s;">
+                    <div id="editor" contenteditable="true" spellcheck="false" class="outline-none flex-1 font-gulim leading-normal-custom para-spacing-off" style="text-align: justify; padding-bottom: 50vh;"></div>
                 </div>
             </main>
         </div>
@@ -303,14 +299,13 @@
 
         // 앱 시작 시 폴더 권한 확인 및 게이트키퍼 제어
         window.addEventListener('DOMContentLoaded', async () => {
+            applyAllUI();
             await loadSettings();
             const savedHandle = await getHandleFromDB();
             if (savedHandle) {
                 if ((await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted') {
                     dirHandle = savedHandle;
                     autoSaveStatus.innerText = '자동저장 켜짐';
-                    btnFolder.innerText = '폴더 연결됨';
-                    btnFolder.classList.add('bg-blue-100', 'text-blue-800');
                     gatekeeperScreen.style.display = 'none';
                     await initAppAfterFolderConnected();
                 } else {
@@ -338,8 +333,6 @@
         gateBtnStart.addEventListener('click', async () => {
             gatekeeperScreen.style.display = 'none';
             autoSaveStatus.innerText = '자동저장 켜짐';
-            btnFolder.innerText = '폴더 연결됨';
-            btnFolder.classList.add('bg-blue-100', 'text-blue-800');
             await initAppAfterFolderConnected();
         });
 
@@ -367,16 +360,97 @@
             }
         }
 
+        // ---------- 서식 상태 / UI 적용 ----------
+        const FONTS = [['gulim', '굴림체'], ['dodum', '돋움체'], ['batang', '바탕체']];
+        const LEADINGS = [['tight', '1.3'], ['normal', '1.6'], ['loose', '2.0']];
+        const MARGIN_LABELS = ['없음', '좁음', '중간', '넓음'];
+        const MARGIN_WIDTHS = [0, 1024, 768, 576];
+        let fontKey = 'gulim';
+        let leadingKey = 'normal';
+
+        const btnFont = document.getElementById('btn-font');
+        const btnLeading = document.getElementById('btn-leading');
+        const btnIndent = document.getElementById('btn-indent');
+        const btnPara = document.getElementById('btn-para');
+        const btnMargin = document.getElementById('btn-margin');
+
+        function applyFont() {
+            if (!FONTS.some(f => f[0] === fontKey)) fontKey = 'gulim';
+            editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
+            editor.classList.add('font-' + fontKey);
+            btnFont.innerText = FONTS.find(f => f[0] === fontKey)[1];
+            syncMemoHeights();
+        }
+        function applyLeading() {
+            if (!LEADINGS.some(l => l[0] === leadingKey)) leadingKey = 'normal';
+            editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
+            editor.classList.add('leading-' + leadingKey + '-custom');
+            btnLeading.innerText = '줄간격 ' + LEADINGS.find(l => l[0] === leadingKey)[1];
+        }
+        function applyIndent() {
+            editor.classList.toggle('indent-on', isIndentOn);
+            btnIndent.classList.toggle('on', isIndentOn);
+        }
+        function applyPara() {
+            editor.classList.toggle('para-spacing-on', isParaOn);
+            editor.classList.toggle('para-spacing-off', !isParaOn);
+            btnPara.classList.toggle('on', isParaOn);
+            syncMemoHeights();
+        }
+        function applyMarginMode() {
+            btnMargin.innerText = '여백 ' + MARGIN_LABELS[marginMode];
+            applyLayout();
+        }
+        function applyPomoVisibility() {
+            pomoSidebar.style.display = pomoVisible ? 'flex' : 'none';
+            btnTogglePomo.classList.toggle('on', pomoVisible);
+            applyLayout();
+        }
+        function applyAllUI() {
+            applyFont(); applyLeading(); applyIndent(); applyPara(); applyMarginMode(); applyPomoVisibility();
+        }
+
+        /* ---------- 레이아웃 ----------
+           - 본문은 기본적으로 중앙.
+           - 여백이 있을 때: 뽀모(왼쪽)·메모(오른쪽)는 여백 영역에만 표시 → 본문 위치 불변(좌우 대칭).
+             단, 창이 좁아 여백 영역에 안 들어가면 본문 폭만 줄여서 확보.
+           - 여백 없음: 뽀모/메모가 실제로 필요한 만큼만 양쪽에서 영역을 내주고 나머지는 본문이 꽉 채움(비대칭 가능). */
+        const POMO_W = 256;   // 뽀모 패널 폭
+        const MEMO_W = 340;   // 메모 폭(300) + 연결선(24) + 여유
+        const BASE_PAD = 24;  // 기본 좌우 여백
+
+        function applyLayout() {
+            const W = mainContainer.clientWidth;
+            if (!W) return;
+            const hasMemo = !!editor.querySelector('.para-memo');
+            const pomoNeed = pomoVisible ? POMO_W : 0;
+            const memoNeed = hasMemo ? MEMO_W : 0;
+            let left, right;
+
+            if (marginMode === 0) {
+                left = Math.max(BASE_PAD, pomoNeed);
+                right = Math.max(BASE_PAD, memoNeed);
+            } else {
+                const side = Math.max(BASE_PAD, pomoNeed, memoNeed);
+                let bodyW = Math.min(MARGIN_WIDTHS[marginMode], W - 2 * side);
+                bodyW = Math.max(bodyW, Math.min(320, W - 2 * BASE_PAD));
+                left = right = Math.max(BASE_PAD, (W - bodyW) / 2);
+            }
+            contentWrapper.style.paddingLeft = left + 'px';
+            contentWrapper.style.paddingRight = right + 'px';
+        }
+        new ResizeObserver(applyLayout).observe(mainContainer);
+
         // 지정 폴더 내 settings.json에 설정 저장
         async function saveSettings() {
             const settings = {
-                font: document.getElementById('select-font').value,
+                font: fontKey,
                 indent: isIndentOn,
-                leading: document.getElementById('select-leading').value,
+                leading: leadingKey,
                 para: isParaOn,
                 margin: marginMode
             };
-            
+
             localStorage.setItem('tdtd_app_settings', JSON.stringify(settings));
 
             if (dirHandle) {
@@ -392,93 +466,58 @@
         }
 
         async function loadSettings() {
-            let loadedSettings = null;
+            let s = null;
             if (dirHandle) {
                 try {
                     const fileHandle = await dirHandle.getFileHandle('settings.json');
                     const file = await fileHandle.getFile();
-                    loadedSettings = JSON.parse(await file.text());
+                    s = JSON.parse(await file.text());
                 } catch (e) {}
             }
-            if (!loadedSettings) {
+            if (!s) {
                 const saved = localStorage.getItem('tdtd_app_settings');
-                if (saved) loadedSettings = JSON.parse(saved);
+                if (saved) s = JSON.parse(saved);
             }
-
-            if (!loadedSettings) return;
+            if (!s) return;
 
             try {
-                const s = loadedSettings;
-                if (s.font) {
-                    document.getElementById('select-font').value = s.font;
-                    editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
-                    editor.classList.add('font-' + s.font);
-                }
-                if (s.indent !== undefined) {
-                    isIndentOn = s.indent;
-                    const btnIndent = document.getElementById('btn-indent');
-                    if (isIndentOn) {
-                        editor.classList.add('indent-on');
-                        btnIndent.innerText = '들여쓰기: 켜짐';
-                        btnIndent.classList.add('bg-blue-100', 'text-blue-800');
-                    } else {
-                        editor.classList.remove('indent-on');
-                        btnIndent.innerText = '들여쓰기: 끔';
-                        btnIndent.classList.remove('bg-blue-100', 'text-blue-800');
-                    }
-                }
-                if (s.leading) {
-                    document.getElementById('select-leading').value = s.leading;
-                    editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
-                    editor.classList.add('leading-' + s.leading + '-custom');
-                }
-                if (s.para !== undefined) {
-                    isParaOn = s.para;
-                    const btnPara = document.getElementById('btn-para');
-                    if (isParaOn) {
-                        editor.classList.remove('para-spacing-off');
-                        editor.classList.add('para-spacing-on');
-                        btnPara.innerText = '문단간격: 있음';
-                        btnPara.classList.add('bg-blue-100', 'text-blue-800');
-                    } else {
-                        editor.classList.remove('para-spacing-on');
-                        editor.classList.add('para-spacing-off');
-                        btnPara.innerText = '문단간격: 없음';
-                        btnPara.classList.remove('bg-blue-100', 'text-blue-800');
-                    }
-                }
-                if (s.margin !== undefined) {
-                    marginMode = s.margin;
-                    applyMarginMode();
-                }
+                if (s.font) fontKey = s.font;                 // 예전 'system' 값은 굴림체로 대체됨
+                if (s.indent !== undefined) isIndentOn = !!s.indent;
+                if (s.leading) leadingKey = s.leading;
+                if (s.para !== undefined) isParaOn = !!s.para;
+                if (s.margin !== undefined) marginMode = s.margin;
+                applyAllUI();
             } catch (e) {
                 console.error('설정 적용 실패:', e);
             }
         }
 
-        function applyMarginMode() {
-            const btnMargin = document.getElementById('btn-margin');
-            contentWrapper.className = 'w-full min-h-full flex flex-col mx-auto transition-all duration-300';
-            
-            if (marginMode === 0) { // 없음
-                contentWrapper.classList.add('max-w-none', 'px-6');
-                btnMargin.innerText = '여백: 없음';
-            } else if (marginMode === 1) { // 좁음
-                contentWrapper.classList.add('max-w-5xl', 'px-8');
-                btnMargin.innerText = '여백: 좁음';
-            } else if (marginMode === 2) { // 중간
-                contentWrapper.classList.add('max-w-3xl', 'px-6');
-                btnMargin.innerText = '여백: 중간';
-            } else if (marginMode === 3) { // 넓음
-                contentWrapper.classList.add('max-w-xl', 'px-6');
-                btnMargin.innerText = '여백: 넓음';
-            }
-        }
-
-        // 여백 버튼 클릭 시 4가지 모드 순환
-        document.getElementById('btn-margin').addEventListener('click', () => {
+        // 스위치 버튼들: 클릭할 때마다 값 순환
+        btnMargin.addEventListener('click', () => {
             marginMode = (marginMode + 1) % 4;
             applyMarginMode();
+            saveSettings();
+        });
+        btnFont.addEventListener('click', () => {
+            const i = FONTS.findIndex(f => f[0] === fontKey);
+            fontKey = FONTS[(i + 1) % FONTS.length][0];
+            applyFont();
+            saveSettings();
+        });
+        btnLeading.addEventListener('click', () => {
+            const i = LEADINGS.findIndex(l => l[0] === leadingKey);
+            leadingKey = LEADINGS[(i + 1) % LEADINGS.length][0];
+            applyLeading();
+            saveSettings();
+        });
+        btnIndent.addEventListener('click', () => {
+            isIndentOn = !isIndentOn;
+            applyIndent();
+            saveSettings();
+        });
+        btnPara.addEventListener('click', () => {
+            isParaOn = !isParaOn;
+            applyPara();
             saveSettings();
         });
 
@@ -488,10 +527,6 @@
                 dirHandle = await window.showDirectoryPicker();
                 await saveHandleToDB(dirHandle);
                 autoSaveStatus.innerText = '자동저장 켜짐';
-                btnFolder.innerText = '폴더 연결됨';
-                btnFolder.classList.remove('bg-amber-100', 'text-amber-800');
-                btnFolder.classList.add('bg-blue-100', 'text-blue-800');
-                alert('저장 폴더가 변경되었습니다.');
                 await initAppAfterFolderConnected();
             } catch (err) {
                 console.error(err);
@@ -535,7 +570,26 @@
         });
 
         // 글자수 표기 (메모 영역 제외하고 본문 텍스트만 계산)
+        // 메모가 문단보다 길면 그만큼만 문단 아래 공간 확보 (메모 높이 - 문단 아래 간격).
+        // 메모가 문단 안에 들어가면 추가 여백 없음.
+        function syncMemoHeights() {
+            Array.from(editor.children).forEach(block => {
+                const memo = block.querySelector(':scope > .para-memo');
+                if (!memo) {
+                    if (block.style.minHeight) {
+                        block.style.minHeight = '';
+                        if (!block.getAttribute('style')) block.removeAttribute('style');
+                    }
+                    return;
+                }
+                const mb = parseFloat(getComputedStyle(block).marginBottom) || 0;
+                const need = Math.max(0, Math.ceil(memo.offsetHeight - mb));
+                block.style.minHeight = need + 'px';
+            });
+        }
+
         function updateCharCount() {
+            syncMemoHeights();
             const clone = editor.cloneNode(true);
             clone.querySelectorAll('.para-memo').forEach(m => m.remove());
             const text = clone.innerText || '';
@@ -543,6 +597,7 @@
             const withSpaces = cleanText.length;
             const withoutSpaces = cleanText.replace(/\s/g, '').length;
             charCountSpan.innerText = `글자수 ${withSpaces.toLocaleString()} (${withoutSpaces.toLocaleString()})`;
+            applyLayout(); // 메모 유무에 따라 레이아웃 갱신
         }
 
         // 커서 위치가 화면 하단에 가려지지 않도록 스크롤 자동 보정 (5줄 여유 유지)
@@ -761,61 +816,30 @@
             }
         });
 
-        // 서식 제어 및 설정 저장 연동
-        document.getElementById('select-font').addEventListener('change', (e) => {
-            editor.classList.remove('font-sans-system', 'font-gulim', 'font-dodum', 'font-batang');
-            editor.classList.add('font-' + e.target.value);
-            saveSettings();
-        });
+        // 정렬 스위치: 커서가 있는 문단(또는 선택 문단)에 적용, 라벨은 현재 문단 정렬을 표시
+        const ALIGNS = [['justify', '양쪽', 'justifyFull'], ['left', '왼쪽', 'justifyLeft'], ['center', '가운데', 'justifyCenter'], ['right', '오른쪽', 'justifyRight']];
+        const btnAlign = document.getElementById('btn-align');
+        let alignIdx = 0;
 
-        document.getElementById('select-align').addEventListener('change', (e) => {
-            const align = e.target.value;
-            let command = 'justifyLeft';
-            if (align === 'center') command = 'justifyCenter';
-            else if (align === 'right') command = 'justifyRight';
-            else if (align === 'justify') command = 'justifyFull';
-            
-            document.execCommand(command, false, null);
+        btnAlign.addEventListener('mousedown', (e) => e.preventDefault()); // 에디터 선택 영역 유지
+        btnAlign.addEventListener('click', () => {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !editor.contains(sel.anchorNode)) editor.focus();
+            alignIdx = (alignIdx + 1) % ALIGNS.length;
+            document.execCommand(ALIGNS[alignIdx][2], false, null);
+            btnAlign.innerText = ALIGNS[alignIdx][1];
             editor.focus();
             executeAutoSave();
         });
 
-        const btnIndent = document.getElementById('btn-indent');
-        btnIndent.addEventListener('click', () => {
-            isIndentOn = !isIndentOn;
-            if (isIndentOn) {
-                editor.classList.add('indent-on');
-                btnIndent.innerText = '들여쓰기: 켜짐';
-                btnIndent.classList.add('bg-blue-100', 'text-blue-800');
-            } else {
-                editor.classList.remove('indent-on');
-                btnIndent.innerText = '들여쓰기: 끔';
-                btnIndent.classList.remove('bg-blue-100', 'text-blue-800');
-            }
-            saveSettings();
-        });
-
-        document.getElementById('select-leading').addEventListener('change', (e) => {
-            editor.classList.remove('leading-tight-custom', 'leading-normal-custom', 'leading-loose-custom');
-            editor.classList.add('leading-' + e.target.value + '-custom');
-            saveSettings();
-        });
-
-        const btnPara = document.getElementById('btn-para');
-        btnPara.addEventListener('click', () => {
-            isParaOn = !isParaOn;
-            if (isParaOn) {
-                editor.classList.remove('para-spacing-off');
-                editor.classList.add('para-spacing-on');
-                btnPara.innerText = '문단간격: 있음';
-                btnPara.classList.add('bg-blue-100', 'text-blue-800');
-            } else {
-                editor.classList.remove('para-spacing-on');
-                editor.classList.add('para-spacing-off');
-                btnPara.innerText = '문단간격: 없음';
-                btnPara.classList.remove('bg-blue-100', 'text-blue-800');
-            }
-            saveSettings();
+        document.addEventListener('selectionchange', () => {
+            const sel = window.getSelection();
+            if (!sel.rangeCount || !editor.contains(sel.anchorNode)) return;
+            const block = getParentBlock(sel.anchorNode);
+            let ta = getComputedStyle(block || editor).textAlign;
+            if (ta === 'start') ta = 'left';
+            const i = ALIGNS.findIndex(a => a[0] === ta);
+            if (i >= 0) { alignIdx = i; btnAlign.innerText = ALIGNS[i][1]; }
         });
 
         // --- 뽀모도로 타이머 로직 ---
@@ -827,13 +851,7 @@
 
         btnTogglePomo.addEventListener('click', () => {
             pomoVisible = !pomoVisible;
-            if (pomoVisible) {
-                pomoSidebar.style.display = 'flex';
-                btnTogglePomo.innerText = '뽀모 숨기기';
-            } else {
-                pomoSidebar.style.display = 'none';
-                btnTogglePomo.innerText = '뽀모 보이기';
-            }
+            applyPomoVisibility();
         });
 
         function formatTime(secs) {
@@ -988,63 +1006,6 @@
             }
             return range;
         }
-
-        document.getElementById('btn-lock').addEventListener('click', () => {
-            const selection = window.getSelection();
-            if (!selection.rangeCount || selection.isCollapsed) {
-                alert('잠글 문단 영역을 드래그하거나 선택해주세요.');
-                return;
-            }
-
-            const range = getNormalizedSelectionRange();
-            if (!range) return;
-
-            let targetBlocks = new Set();
-            
-            let blocks = Array.from(editor.querySelectorAll(':scope > p, :scope > div'));
-            if (blocks.length === 0) {
-                if (editor.innerHTML.trim() !== '') {
-                    editor.innerHTML = `<div>${editor.innerHTML}</div>`;
-                    blocks = Array.from(editor.querySelectorAll(':scope > p, :scope > div'));
-                }
-            }
-
-            let anchorBlock = getParentBlock(selection.anchorNode);
-            let focusBlock = getParentBlock(selection.focusNode);
-            if (anchorBlock && focusBlock && anchorBlock === focusBlock) {
-                targetBlocks.add(anchorBlock);
-            } else {
-                blocks.forEach(block => {
-                    const blockRange = document.createRange();
-                    blockRange.selectNodeContents(block);
-                    
-                    const startsBeforeEnd = range.compareBoundaryPoints(Range.START_TO_END, blockRange) > 0;
-                    const endsAfterStart = range.compareBoundaryPoints(Range.END_TO_START, blockRange) < 0;
-                    
-                    if (startsBeforeEnd && endsAfterStart) {
-                        if (range.endContainer === block && range.endOffset === 0) return;
-                        if (range.endContainer.nodeType === Node.TEXT_NODE && range.endContainer.parentNode === block && range.endOffset === 0) return;
-                        
-                        targetBlocks.add(block);
-                    }
-                });
-            }
-
-            if (targetBlocks.size === 0 && anchorBlock) {
-                targetBlocks.add(anchorBlock);
-            }
-
-            targetBlocks.forEach(block => {
-                if (block !== editor) {
-                    block.setAttribute('contenteditable', 'false');
-                    block.classList.add('locked-paragraph');
-                }
-            });
-
-            window.getSelection().removeAllRanges();
-            updateCharCount();
-            executeAutoSave();
-        });
 
         document.getElementById('btn-unlock-all').addEventListener('click', () => {
             const lockedBlocks = editor.querySelectorAll('.locked-paragraph, [contenteditable="false"]');
