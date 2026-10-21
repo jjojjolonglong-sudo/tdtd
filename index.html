@@ -39,7 +39,10 @@ header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;al
 .memo:before{content:"";position:absolute;left:-1rem;top:.8em;width:1rem;height:1px;background:#cbd5e1}
 #pomo{position:absolute;left:0;top:0;bottom:0;width:256px;padding:16px 16px 56px;flex-direction:column;justify-content:space-between;z-index:20;pointer-events:none;user-select:none;font-size:12px}
 #pomo button{pointer-events:auto;padding:4px 12px;border-radius:4px;background:#e5e7eb;color:#374151;font-weight:500}
-#pl{color:#6b7280;font-size:11px;display:grid;gap:4px}
+#pl{color:#6b7280;font-size:11px;display:grid;gap:6px}
+.pe{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 6px}
+.pf{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pn{grid-column:1/-1}
 footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);border-top:1px solid #e5e7eb;padding:8px 24px;color:#6b7280;font-size:12px;text-align:right;user-select:none;z-index:40}
 .menu{display:none;position:absolute;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 8px rgba(0,0,0,.1);padding:4px;z-index:10000;font-size:12px}
 .menu button{display:block;width:100%;text-align:left;padding:6px 12px;background:none;border-radius:4px;color:#374151}
@@ -86,7 +89,7 @@ const FONTS=[['굴림체',"Gulim,'굴림',sans-serif"],['돋움체',"Dotum,'돋�
  AL=[['justify','양쪽','justifyFull'],['left','왼쪽','justifyLeft'],['center','가운데','justifyCenter'],['right','오른쪽','justifyRight']],
  BLK=['DIV','P','H1','H2','H3','H4','H5','H6','LI','UL','OL','BLOCKQUOTE','PRE'];
 let S={font:0,lead:1,indent:0,para:0,margin:2},dir=null,saved=null,name='untitled',dirty=false,saving=false,again=false,saveT=0,lastSave=Date.now(),
- pomoOn=true,editing=null,alignI=0,cur=[],P={run:false,work:true,left:1500,end:0},statT=0;
+ pomoOn=true,editing=null,alignI=0,cur=[],P={run:false,work:true,left:1500,end:0,sess:false,seg:null,segs:[]},statT=0;
 
 /* ---------- 공통 ---------- */
 const say=m=>{st.textContent=m;clearTimeout(statT);statT=setTimeout(()=>st.textContent=dir?'자동저장 켜짐':'폴더 미지정',2500)};
@@ -223,17 +226,17 @@ async function list(){
  if(!dir)return;const a=[];for await(const e of dir.values())if(e.kind==='file'&&e.name.endsWith('.md'))a.push(e.name);
  a.sort((x,y)=>x.localeCompare(y,'ko')).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n.slice(0,-3);f.appendChild(o)});f.value=''}
 function setName(n){name=n;$('tt').textContent=n;$('ti').value=n}
-$('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();
+$('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();closeSeg();
  if(v==='+'){const have=new Set([...$('fs').options].map(o=>o.value));let n='untitled',i=2;while(have.has(n+'.md'))n='untitled-'+i++;
-  setName(n);ed.replaceChildren();refresh(true);dirty=true;await save();return list()}
- const t=await get(v);if(t===null)return say('파일 읽기 실패');setName(v.slice(0,-3));load(t);try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
+  setName(n);ed.replaceChildren();refresh(true);openSeg();dirty=true;await save();return list()}
+ const t=await get(v);if(t===null){openSeg();return say('파일 읽기 실패')}setName(v.slice(0,-3));load(t);openSeg();try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
  dirty=false;ed.focus()};
 /* 파일명 변경: 새 이름으로 저장 후 이전 파일 삭제 (같은 이름이 있으면 중단) */
 function editTitle(){tm.style.display='none';$('tt').classList.add('hide');$('ti').classList.remove('hide');$('ti').focus();$('ti').select()}
 async function commitTitle(){const ti=$('ti');if(ti.classList.contains('hide'))return;ti.classList.add('hide');$('tt').classList.remove('hide');
  const n=safe(ti.value);ti.value=name;if(n===name)return;
  if(dir){if(await get(n+'.md')!==null)return say('이미 같은 이름의 파일이 있습니다');
-  const old=name;await flush();setName(n);dirty=true;await save();try{await dir.removeEntry(old+'.md')}catch(e){}await list()}else setName(n)}
+  const old=name;await flush();setName(n);dirty=true;await save();try{await dir.removeEntry(old+'.md')}catch(e){}await renameLogs(old,n);await list()}else{const old=name;setName(n);await renameLogs(old,n)}}
 $('tt').oncontextmenu=e=>{e.preventDefault();tm.style.display='block';tm.style.left=e.pageX+'px';tm.style.top=e.pageY+'px'};
 $('tt').ondblclick=editTitle;$('mren').onclick=editTitle;$('ti').onblur=commitTitle;
 $('ti').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commitTitle()}else if(e.key==='Escape'){$('ti').value=name;commitTitle()}};
@@ -287,15 +290,33 @@ $('bu').onclick=()=>{const a=[...ed.querySelectorAll('.lk')];if(!a.length)return
 /* ---------- 뽀모도로 (시작 시각 기준 → 백그라운드에서도 정확) ---------- */
 const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
 const pshow=()=>$('pd').textContent=(P.work?'작업중 ':'휴식중 ')+fmt(Math.max(0,P.left));
-$('pb').onclick=()=>{P.run=!P.run;if(P.run)P.end=Date.now()+P.left*1000;$('pb').textContent=P.run?'정지':'시작'};
+$('pb').onclick=()=>{P.run=!P.run;if(P.run){P.end=Date.now()+P.left*1000;if(P.work&&!P.sess)beginSess()}$('pb').textContent=P.run?'정지':'시작'};
+const cnt=()=>{const t=txt(ed).trim();return[t.length,t.replace(/\s/g,'').length]};
+/* 작업(뽀모) 세션: 파일별 구간(segment)으로 시작/끝 글자수를 기록. 세션 중 다른 파일을 열면 이전 파일 구간을 닫고 새 구간을 엶 */
+const openSeg=()=>{if(P.sess)P.seg={file:name,s:cnt()}};
+const closeSeg=()=>{if(P.seg){P.segs.push({...P.seg,e:cnt()});P.seg=null}};
+function beginSess(){P.sess=true;P.segs=[];openSeg()}
 setInterval(async()=>{if(!P.run)return;P.left=Math.ceil((P.end-Date.now())/1000);
- if(P.left<=0){if(P.work){P.work=false;P.left=300;P.end=Date.now()+300000;await record()}else{P.work=true;P.left=1500;P.end=Date.now()+1500000}}pshow()},500);
-async function record(){
- const n=new Date(),p=x=>String(x).padStart(2,'0'),t=txt(ed).trim();
- const e={date:`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,withSpaces:t.length,withoutSpaces:t.replace(/\s/g,'').length};
- let a=[];if(dir){try{a=JSON.parse(await get('pomodoro_logs.json')||'[]')}catch(x){a=[]}a.push(e);try{await put('pomodoro_logs.json',JSON.stringify(a,null,2))}catch(x){}}else a=[e];
+ if(P.left<=0){if(P.work){closeSeg();P.sess=false;P.work=false;P.left=300;P.end=Date.now()+300000;await record(P.segs);P.segs=[]}
+  else{P.work=true;P.left=1500;P.end=Date.now()+1500000;beginSess()}}pshow()},500);
+async function record(segs){
+ const n=new Date(),p=x=>String(x).padStart(2,'0'),date=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,time=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+ // 여러 파일을 거쳤다면 변화 없는 구간은 생략 (하나뿐이면 변화가 없어도 기록)
+ const keep=segs.length>1?segs.filter(g=>g.s[0]!==g.e[0]||g.s[1]!==g.e[1]):segs;
+ const es=keep.map(g=>({date,time,file:g.file,start:g.s[0],end:g.e[0],startNoSpace:g.s[1],endNoSpace:g.e[1]}));
+ if(!es.length)return;
+ let a=[];if(dir){try{a=JSON.parse(await get('pomodoro_logs.json')||'[]')}catch(x){a=[]}a.push(...es);try{await put('pomodoro_logs.json',JSON.stringify(a,null,2))}catch(x){}}else a=es;
  logs(a)}
-function logs(a){$('pl').replaceChildren(...a.slice(-5).map(l=>{const d=document.createElement('div');d.textContent=`${l.time} 공백포함글자수 ${l.withSpaces} (${l.withoutSpaces})`;return d}))}
+async function renameLogs(o,n){ // 파일명을 바꾸면 이전 기록의 파일명도 같이 바꿈
+ if(P.seg&&P.seg.file===o)P.seg.file=n;P.segs.forEach(g=>{if(g.file===o)g.file=n});
+ if(!dir)return;let a;try{a=JSON.parse(await get('pomodoro_logs.json')||'[]')}catch(x){return}
+ if(!a.some(l=>l.file===o))return;a.forEach(l=>{if(l.file===o)l.file=n});try{await put('pomodoro_logs.json',JSON.stringify(a,null,2))}catch(x){}logs(a)}
+function logs(a){$('pl').replaceChildren(...a.slice(-5).map(l=>{const d=document.createElement('div');d.className='pe';
+ const f=(c,t)=>{const x=document.createElement('span');x.className=c;x.textContent=t;return x},N=v=>Number(v).toLocaleString();
+ if(l.start===undefined){d.append(f('',l.time),f('pn',N(l.withSpaces)+'자'))}   // 이전 형식의 기록
+ else{const df=l.end-l.start;d.title=`공백제외 ${N(l.startNoSpace)} → ${N(l.endNoSpace)}`;
+  d.append(f('',l.time),f('pf',l.file||''),f('pn',`${N(l.start)} → ${N(l.end)} (${df>0?'+':''}${N(df)})`))}
+ return d}))}
 
 /* ---------- 시작 ---------- */
 async function init(){
