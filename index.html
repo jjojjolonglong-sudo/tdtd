@@ -133,7 +133,11 @@ function layout(){
 new ResizeObserver(layout).observe(main);
 function syncMemos(){
  ed.querySelectorAll('.has-memo').forEach(b=>{if(!b.querySelector(':scope>.memo')){b.classList.remove('has-memo');b.style.minHeight=''}});
- ed.querySelectorAll('.memo').forEach(m=>{const b=m.parentElement;if(!b||b===ed)return;b.classList.add('has-memo');
+ ed.querySelectorAll('.memo').forEach(m=>{const b=m.parentElement;if(!b||b===ed)return;
+  const f=b.querySelector(':scope>.memo');
+  if(f&&f!==m){if(f.textContent.trim()&&m.textContent.trim())f.append(document.createElement('br'));f.append(...m.childNodes);if(m===editing)editing=f;m.remove();return}   // 문단이 합쳐져 메모가 둘이 되면 줄바꿈으로 병합
+  const ns=m.nextSibling;if(ns&&!(ns.classList&&ns.classList.contains('memo'))&&m!==editing)b.appendChild(m);   // 메모 뒤에 글이 붙으면 메모를 다시 맨 뒤로
+  b.classList.add('has-memo');
   const mb=parseFloat(getComputedStyle(b).marginBottom)||0;b.style.minHeight=Math.max(0,Math.ceil(m.offsetHeight-mb))+'px'});
  ed.querySelectorAll('.memo').forEach(m=>{if(m!==editing)m.setAttribute('contenteditable','false')})}
 let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim();
@@ -184,7 +188,33 @@ function input(){
  dirty=true;st.textContent='저장 중...';refresh();requestAnimationFrame(keepVisible);
  clearTimeout(saveT);saveT=setTimeout(()=>{draft();save()},1000);
  if(Date.now()-lastSave>15000){draft();save()}}
-ed.addEventListener('input',()=>{ensure();input()});
+/* 문단 병합/삭제 시 메모 유실 방지: 지우기 전에 관련 문단의 메모를 떼어 두었다가, 합쳐진 문단에 다시 붙임(메모가 둘이면 syncMemos가 줄바꿈으로 병합) */
+let stash=null;
+ed.addEventListener('beforeinput',e=>{
+ if(!e.inputType.startsWith('delete')||e.isComposing||selMemo())return;
+ const s=getSelection();if(!s.rangeCount)return;const r=s.getRangeAt(0),a=blockOf(r.startContainer),z=blockOf(r.endContainer);let bs=[];
+ if(r.collapsed){if(!a)return;const q=document.createRange();q.selectNodeContents(a);
+  if(e.inputType.includes('Backward')){q.setEnd(r.startContainer,r.startOffset);if(!q.toString())bs=[a.previousElementSibling,a]}
+  else{q.setStart(r.startContainer,r.startOffset);const m=a.querySelector(':scope>.memo');if(q.toString()===(m?m.textContent:''))bs=[a,a.nextElementSibling]}}
+ else if(a&&z&&a!==z)bs=[a,z];
+ const ms=bs.filter(Boolean).map(b=>b.querySelector(':scope>.memo')).filter(m=>m&&m!==editing);
+ if(ms.length){ms.forEach(m=>m.remove());stash=ms}});
+ed.addEventListener('input',e=>{
+ if(stash){const b=blockOf(getSelection().anchorNode)||ed.firstElementChild;if(b)b.append(...stash);stash=null;refresh(true)}
+ if(e.inputType==='insertParagraph'&&!selMemo()){   // 엔터로 문단이 쪼개지면 메모는 앞쪽 문단에 남김
+  const b=blockOf(getSelection().anchorNode),pv=b&&b.previousElementSibling,m=b&&b.querySelector(':scope>.memo');
+  if(m&&pv&&BLK.includes(pv.tagName)&&!pv.querySelector(':scope>.memo')&&m!==editing){pv.appendChild(m);refresh(true)}}
+ if(e.data==='.'&&!e.isComposing){const s=getSelection(),n=s.anchorNode,o=s.anchorOffset;   // ... → …
+  if(s.isCollapsed&&n&&n.nodeType===3&&o>=3&&n.nodeValue.slice(o-3,o)==='...'){const r=document.createRange();r.setStart(n,o-3);r.setEnd(n,o);s.removeAllRanges();s.addRange(r);document.execCommand('insertText',false,'…')}}
+ ensure();input()});
+/* 따옴표: 직선 " ' → 앞뒤 구분되는 “ ” ‘ ’ (앞 글자가 없거나 공백·여는 괄호면 여는 따옴표) */
+ed.addEventListener('beforeinput',e=>{
+ if(e.inputType!=='insertText'||e.isComposing||(e.data!=='"'&&e.data!=="'"))return;
+ const s=getSelection();if(!s.rangeCount)return;e.preventDefault();
+ const r=s.getRangeAt(0).cloneRange();let pv='';
+ try{r.collapse(true);r.setStart(selMemo()||blockOf(s.anchorNode)||ed,0);pv=r.toString().slice(-1)}catch(x){}
+ const open=!pv||/[\s(\[{<\u2014\u2013\u00a0“‘]/.test(pv);
+ document.execCommand('insertText',false,e.data==='"'?(open?'“':'”'):(open?'‘':'’'))});
 addEventListener('pagehide',()=>{if(dirty)draft()});
 addEventListener('beforeunload',e=>{if(dirty){draft();e.preventDefault();e.returnValue=''}});
 $('bs').onclick=async()=>{if(!dir)return say('먼저 저장 폴더를 지정해주세요');dirty=true;await save();await list()};
