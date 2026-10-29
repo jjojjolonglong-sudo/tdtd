@@ -39,10 +39,9 @@ header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;al
 .memo:before{content:"";position:absolute;left:-1rem;top:.8em;width:1rem;height:1px;background:#cbd5e1}
 #pomo{position:absolute;left:0;top:0;bottom:0;width:256px;padding:16px 16px 56px;flex-direction:column;justify-content:space-between;z-index:20;pointer-events:none;user-select:none;font-size:12px}
 #pomo button{pointer-events:auto;padding:4px 12px;border-radius:4px;background:#e5e7eb;color:#374151;font-weight:500}
-#pl{color:#6b7280;font-size:11px;display:grid;gap:6px}
-.pe{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 6px}
-.pf{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pn{grid-column:1/-1}
+#pl{color:#6b7280;font-size:10px;display:grid;gap:3px}
+.pe{display:flex;gap:6px;white-space:nowrap}
+.ph{color:#374151;font-weight:600}
 footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);border-top:1px solid #e5e7eb;padding:8px 24px;color:#6b7280;font-size:12px;text-align:right;user-select:none;z-index:40}
 .menu{display:none;position:absolute;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 8px rgba(0,0,0,.1);padding:4px;z-index:10000;font-size:12px}
 .menu button{display:block;width:100%;text-align:left;padding:6px 12px;background:none;border-radius:4px;color:#374151}
@@ -225,7 +224,7 @@ async function list(){
  const f=$('fs');f.innerHTML='<option value="">파일 목록</option><option value="+">＋ 새 파일</option>';
  if(!dir)return;const a=[];for await(const e of dir.values())if(e.kind==='file'&&e.name.endsWith('.md'))a.push(e.name);
  a.sort((x,y)=>x.localeCompare(y,'ko')).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n.slice(0,-3);f.appendChild(o)});f.value=''}
-function setName(n){name=n;$('tt').textContent=n;$('ti').value=n}
+function setName(n){name=n;$('tt').textContent=n;$('ti').value=n;showLogs()}
 $('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();closeSeg();
  if(v==='+'){const have=new Set([...$('fs').options].map(o=>o.value));let n='untitled',i=2;while(have.has(n+'.md'))n='untitled-'+i++;
   setName(n);ed.replaceChildren();refresh(true);openSeg();dirty=true;await save();return list()}
@@ -311,12 +310,17 @@ async function renameLogs(o,n){ // 파일명을 바꾸면 이전 기록의 파�
  if(P.seg&&P.seg.file===o)P.seg.file=n;P.segs.forEach(g=>{if(g.file===o)g.file=n});
  if(!dir)return;let a;try{a=JSON.parse(await get('pomodoro_logs.json')||'[]')}catch(x){return}
  if(!a.some(l=>l.file===o))return;a.forEach(l=>{if(l.file===o)l.file=n});try{await put('pomodoro_logs.json',JSON.stringify(a,null,2))}catch(x){}logs(a)}
-function logs(a){$('pl').replaceChildren(...a.slice(-5).map(l=>{const d=document.createElement('div');d.className='pe';
- const f=(c,t)=>{const x=document.createElement('span');x.className=c;x.textContent=t;return x},N=v=>Number(v).toLocaleString(),tm='~'+String(l.time||'').slice(0,5);   // 끝난 시각(시:분)
- if(l.start===undefined){d.title=`공백포함 ${N(l.withSpaces)}`;d.append(f('',tm),f('pn',N(l.withoutSpaces!==undefined?l.withoutSpaces:l.withSpaces)+'자'))}   // 이전 형식의 기록
- else{const s=l.startNoSpace,e=l.endNoSpace,df=e-s;d.title=`공백포함 ${N(l.start)} → ${N(l.end)}`;   // 화면에는 공백 미포함 기준
-  d.append(f('',tm),f('pf',l.file||''),f('pn',`${N(s)} → ${N(e)} (${df>0?'+':''}${N(df)})`))}
- return d}))}
+let LOGS=[];
+function logs(a){if(a)LOGS=a;showLogs()}
+function showLogs(){ // 현재 파일의 오늘 기록만 (최근 5개), 맨 윗줄에 오늘 요약
+ const n=new Date(),p=x=>String(x).padStart(2,'0'),today=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,N=v=>Number(v).toLocaleString(),
+  sg=v=>(v>0?'+':'')+N(v),a=LOGS.filter(l=>l.file===name&&l.date===today&&l.start!==undefined),el=[];
+ const row=(c,...t)=>{const d=document.createElement('div');d.className=c;t.forEach(x=>{const e=document.createElement('span');e.textContent=x;d.append(e)});return d};
+ const h=row('pe ph',`${n.getMonth()+1}월 ${n.getDate()}일`);
+ if(a.length){const s=a[0].startNoSpace,e=a[a.length-1].endNoSpace;h.append(Object.assign(document.createElement('span'),{textContent:`${N(s)} → ${N(e)} (${sg(e-s)})`}))}
+ el.push(h);
+ a.slice(-5).forEach(l=>{const d=row('pe','~'+String(l.time).slice(0,5),`${N(l.startNoSpace)} → ${N(l.endNoSpace)} (${sg(l.endNoSpace-l.startNoSpace)})`);d.title=`공백포함 ${N(l.start)} → ${N(l.end)}`;el.push(d)});
+ $('pl').replaceChildren(...el)}
 
 /* ---------- 시작 ---------- */
 async function init(){
