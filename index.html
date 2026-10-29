@@ -312,10 +312,10 @@ async function renameLogs(o,n){ // 파일명을 바꾸면 이전 기록의 파�
  if(!dir)return;let a;try{a=JSON.parse(await get('pomodoro_logs.json')||'[]')}catch(x){return}
  if(!a.some(l=>l.file===o))return;a.forEach(l=>{if(l.file===o)l.file=n});try{await put('pomodoro_logs.json',JSON.stringify(a,null,2))}catch(x){}logs(a)}
 function logs(a){$('pl').replaceChildren(...a.slice(-5).map(l=>{const d=document.createElement('div');d.className='pe';
- const f=(c,t)=>{const x=document.createElement('span');x.className=c;x.textContent=t;return x},N=v=>Number(v).toLocaleString();
- if(l.start===undefined){d.append(f('',l.time),f('pn',N(l.withSpaces)+'자'))}   // 이전 형식의 기록
- else{const df=l.end-l.start;d.title=`공백제외 ${N(l.startNoSpace)} → ${N(l.endNoSpace)}`;
-  d.append(f('',l.time),f('pf',l.file||''),f('pn',`${N(l.start)} → ${N(l.end)} (${df>0?'+':''}${N(df)})`))}
+ const f=(c,t)=>{const x=document.createElement('span');x.className=c;x.textContent=t;return x},N=v=>Number(v).toLocaleString(),tm='~'+String(l.time||'').slice(0,5);   // 끝난 시각(시:분)
+ if(l.start===undefined){d.title=`공백포함 ${N(l.withSpaces)}`;d.append(f('',tm),f('pn',N(l.withoutSpaces!==undefined?l.withoutSpaces:l.withSpaces)+'자'))}   // 이전 형식의 기록
+ else{const s=l.startNoSpace,e=l.endNoSpace,df=e-s;d.title=`공백포함 ${N(l.start)} → ${N(l.end)}`;   // 화면에는 공백 미포함 기준
+  d.append(f('',tm),f('pf',l.file||''),f('pn',`${N(s)} → ${N(e)} (${df>0?'+':''}${N(df)})`))}
  return d}))}
 
 /* ---------- 시작 ---------- */
