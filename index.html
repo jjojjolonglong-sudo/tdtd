@@ -303,35 +303,44 @@ async function record(segs){
  const n=new Date(),p=x=>String(x).padStart(2,'0'),date=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,time=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
  // 여러 파일을 거쳤다면 변화 없는 구간은 생략 (하나뿐이면 변화가 없어도 기록)
  const keep=segs.length>1?segs.filter(g=>g.s[0]!==g.e[0]||g.s[1]!==g.e[1]):segs;
- const es=keep.map(g=>({date,time,file:g.file,start:g.s[0],end:g.e[0],startNoSpace:g.s[1],endNoSpace:g.e[1]}));
+ const es=keep.map(g=>({date,time,file:g.file,withSpaces:g.e[0],withoutSpaces:g.e[1]}));   // 시작 글자수는 저장하지 않음(앞 기록에서 계산)
  if(!es.length)return;
- let a=[];if(dir){try{a=JSON.parse(await get('pomodoro_logs.json')||'[]')}catch(x){a=[]}a.push(...es);try{await put('pomodoro_logs.json',JSON.stringify(a,null,2))}catch(x){}}else a=es;
+ if(!dir){LOGS.push(...es);return showLogs()}
+ let a;try{a=await readLogs()}catch(x){   // 기록 파일을 읽을 수 없으면(문법 오류 등) 원본은 절대 건드리지 않고 따로 보관
+  try{let q=[];try{q=JSON.parse(await get('pomodoro_logs.pending.json')||'[]')}catch(y){}q.push(...es);await put('pomodoro_logs.pending.json',JSON.stringify(q,null,2))}catch(y){}
+  LOGS.push(...es);showLogs();return say('뽀모 기록 파일을 읽을 수 없어 pending 파일에 따로 저장했습니다')}
+ a.push(...es);try{await writeLogs(a)}catch(x){say('뽀모 기록 저장 실패')}
  logs(a)}
+async function readLogs(){ // 파일이 없으면 [], 읽기/파싱 실패는 예외 (빈 파일로 오인하지 않음)
+ let h;try{h=await dir.getFileHandle('pomodoro_logs.json')}catch(e){if(e.name==='NotFoundError')return[];throw e}
+ const t=await(await h.getFile()).text();if(!t.trim())return[];const a=JSON.parse(t);if(!Array.isArray(a))throw new Error('형식 오류');return a}
+async function writeLogs(a){ // 쓰기 직전 이전 정상 내용을 .bak.json 으로 보관
+ try{const o=await get('pomodoro_logs.json');if(o)await put('pomodoro_logs.bak.json',o)}catch(e){}
+ await put('pomodoro_logs.json',JSON.stringify(a,null,2))}
 async function renameLogs(o,n){ // 파일명을 바꾸면 이전 기록의 파일명도 같이 바꿈
  if(P.seg&&P.seg.file===o)P.seg.file=n;P.segs.forEach(g=>{if(g.file===o)g.file=n});
- if(!dir)return;let a;try{a=JSON.parse(await get('pomodoro_logs.json')||'[]')}catch(x){return}
- if(!a.some(l=>l.file===o))return;a.forEach(l=>{if(l.file===o)l.file=n});try{await put('pomodoro_logs.json',JSON.stringify(a,null,2))}catch(x){}logs(a)}
+ LOGS.forEach(l=>{if(l.file===o)l.file=n});if(!dir)return;let a;try{a=await readLogs()}catch(x){return}
+ if(!a.some(l=>l.file===o))return;a.forEach(l=>{if(l.file===o)l.file=n});try{await writeLogs(a)}catch(x){}logs(a)}
 let LOGS=[];
 function logs(a){if(a)LOGS=a;showLogs()}
-function showLogs(){ // 현재 파일의 오늘 기록만 (최근 5개), 맨 윗줄에 오늘 요약
- const n=new Date(),p=x=>String(x).padStart(2,'0'),today=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,N=v=>Number(v).toLocaleString(),
-  sg=v=>(v>0?'+':'')+N(v),all=LOGS.filter(l=>l.file===name&&l.start!==undefined),a=all.filter(l=>l.date===today),el=[];
+function showLogs(){ // 현재 파일 기록만. 시작 글자수 = 앞 기록의 끝 글자수(없으면 0)
+ const n=new Date(),p=x=>String(x).padStart(2,'0'),today=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,N=v=>Number(v).toLocaleString(),sg=v=>(v>0?'+':'')+N(v);
+ const all=LOGS.filter(l=>l.file===name).map(l=>({date:l.date,time:String(l.time||''),ws:l.withSpaces!==undefined?l.withSpaces:l.end,wos:l.withoutSpaces!==undefined?l.withoutSpaces:l.endNoSpace}))
+  .filter(l=>l.date&&typeof l.wos==='number').sort((x,y)=>(x.date+x.time<y.date+y.time?-1:1));
+ all.forEach((l,i)=>{l.from=i?all[i-1].wos:0});
+ const day=d=>{const g=all.filter(l=>l.date===d);return g.length?{s:g[0].from,e:g[g.length-1].wos,g}:null};
  const row=(c,...t)=>{const d=document.createElement('div');d.className=c;t.forEach(x=>{const e=document.createElement('span');e.textContent=x;d.append(e)});return d};
- // 기록이 있는 지난 날짜 중 최근 5일: 날짜별 첫 시작 → 마지막 끝 (공백 미포함)
- [...new Set(all.map(l=>l.date))].filter(d=>d!==today).sort().slice(-5).forEach(d=>{
-  const g=all.filter(l=>l.date===d),s=g[0].startNoSpace,e=g[g.length-1].endNoSpace,[,m,dd]=d.split('-');
-  el.push(row('pe pd',`${+m}월 ${+dd}일`,`${N(s)} → ${N(e)} (${sg(e-s)})`))});
- const h=row('pe ph',`${n.getMonth()+1}월 ${n.getDate()}일`);
- if(a.length){const s=a[0].startNoSpace,e=a[a.length-1].endNoSpace;h.append(Object.assign(document.createElement('span'),{textContent:`${N(s)} → ${N(e)} (${sg(e-s)})`}))}
- el.push(h);
- a.slice(-5).forEach(l=>{const d=row('pe','~'+String(l.time).slice(0,5),`${N(l.startNoSpace)} → ${N(l.endNoSpace)} (${sg(l.endNoSpace-l.startNoSpace)})`);d.title=`공백포함 ${N(l.start)} → ${N(l.end)}`;el.push(d)});
+ const rg=(s,e)=>`${N(s)} → ${N(e)} (${sg(e-s)})`,el=[];
+ [...new Set(all.map(l=>l.date))].filter(d=>d!==today).sort().slice(-5).forEach(d=>{const t=day(d),[,m,dd]=d.split('-');el.push(row('pe pd',`${+m}월 ${+dd}일`,rg(t.s,t.e)))});
+ const t=day(today),h=row('pe ph',`${n.getMonth()+1}월 ${n.getDate()}일`);if(t)h.append(Object.assign(document.createElement('span'),{textContent:rg(t.s,t.e)}));el.push(h);
+ if(t)t.g.slice(-5).forEach(l=>{const d=row('pe','~'+l.time.slice(0,5),rg(l.from,l.wos));if(l.ws!==undefined)d.title=`공백포함 ${N(l.ws)}`;el.push(d)});
  $('pl').replaceChildren(...el)}
 
 /* ---------- 시작 ---------- */
 async function init(){
  $('gate').classList.add('hide');say('자동저장 켜짐');await list();
  const s=await get('settings.json');if(s)try{applySettings(JSON.parse(s))}catch(e){}ui();
- const l=await get('pomodoro_logs.json');if(l)try{logs(JSON.parse(l))}catch(e){}
+ try{logs(await readLogs())}catch(e){say('뽀모 기록 파일을 읽을 수 없습니다 (파일은 그대로 유지됩니다)')}
  const last=localStorage.getItem('tdtd_last_file'),t=last&&await get(last);
  if(t!==null&&t!==undefined&&last){setName(last.slice(0,-3));load(t)}
  try{const d=JSON.parse(localStorage.getItem('tdtd_draft')||'null');   // 저장되지 못한 내용 복구
