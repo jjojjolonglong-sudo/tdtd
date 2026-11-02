@@ -216,7 +216,9 @@ ed.addEventListener('input',e=>{
   if(m&&pv&&BLK.includes(pv.tagName)&&!pv.querySelector(':scope>.memo')&&m!==editing){pv.appendChild(m);refresh(true)}}
  if(e.data==='.'&&!e.isComposing){const s=getSelection(),n=s.anchorNode,o=s.anchorOffset;   // ... → …
   if(s.isCollapsed&&n&&n.nodeType===3&&o>=3&&n.nodeValue.slice(o-3,o)==='...'){const r=document.createRange();r.setStart(n,o-3);r.setEnd(n,o);s.removeAllRanges();s.addRange(r);document.execCommand('insertText',false,'…')}}
- ensure();input()});
+ if(!e.isComposing)ensure();   // 한글 조합 중에 DOM을 옮기면 조합이 끊겨 첫 글자 자리에서 계속 덮어써져요 → 조합이 끝난 뒤에 감싸요
+ input()});
+ed.addEventListener('compositionend',()=>{ensure()});
 /* 따옴표: 직선 " ' → 앞뒤 구분되는 “ ” ‘ ’ (앞 글자가 없거나 공백·여는 괄호면 여는 따옴표) */
 ed.addEventListener('beforeinput',e=>{
  if(e.inputType!=='insertText'||e.isComposing||(e.data!=='"'&&e.data!=="'"))return;
