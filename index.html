@@ -107,6 +107,13 @@ const idb=(m,v)=>new Promise(r=>{const q=indexedDB.open('TdtdAppDB',1);q.onupgra
  q.onsuccess=()=>{const o=q.result.transaction('handles',m==='get'?'readonly':'readwrite').objectStore('handles'),x=m==='get'?o.get('savedDirHandle'):o.put(v,'savedDirHandle');x.onsuccess=()=>r(x.result);x.onerror=()=>r(null)}});
 async function put(f,d){const h=await dir.getFileHandle(f,{create:true}),w=await h.createWritable();await w.write(d);await w.close()}
 async function get(f){try{return await(await(await dir.getFileHandle(f)).getFile()).text()}catch(e){return null}}
+/* wkwk 연결용 번호: 파일 맨 첫 줄의 숨김 주석(<!--wk:번호 c=만든시각-->). 본문과 섞이지 않게 열 때 떼어 두었다가 저장할 때 다시 붙여요 */
+const WKTAG=/^<!--wk:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?: c=\S+?)?-->/i;
+let wkTag='';
+const takeTag=t=>{const m=WKTAG.exec(t||'');wkTag=m?m[0]:'';return m?t.slice(m[0].length).replace(/^\r?\n/,''):t};
+const newTag=()=>'<!--wk:'+crypto.randomUUID()+' c='+new Date().toISOString()+'-->';
+async function headTag(f){try{const x=await(await(await dir.getFileHandle(f)).getFile()).slice(0,200).text();const m=WKTAG.exec(x);return m?m[0]:''}catch(e){return ''}}
+async function has(f){try{await dir.getFileHandle(f);return true}catch(e){return false}}
 
 /* ---------- 불러오기 보안: 허용된 태그/속성만 남김 ---------- */
 function clean(html){
@@ -182,7 +189,7 @@ async function save(){
  if(!dir){draft();return}
  if(saving){again=true;return}
  saving=true;clearTimeout(saveT);
- try{const html=ed.innerHTML;await put(name+'.md',html);lastSave=Date.now();if(html===ed.innerHTML){dirty=false;localStorage.removeItem('tdtd_draft')}
+ try{const html=ed.innerHTML;const ft=await headTag(name+'.md');if(ft)wkTag=ft;else if(!wkTag&&!(await has(name+'.md')))wkTag=newTag();await put(name+'.md',(wkTag?wkTag+'\n':'')+html);lastSave=Date.now();if(html===ed.innerHTML){dirty=false;localStorage.removeItem('tdtd_draft')}
   localStorage.setItem('tdtd_last_file',name+'.md');say('저장됨')}
  catch(e){say('저장 실패 — 재시도 중');draft();saveT=setTimeout(save,5000)}
  finally{saving=false;if(again){again=false;save()}}}
@@ -228,8 +235,8 @@ async function list(){
 function setName(n){name=n;$('tt').textContent=n;$('ti').value=n;showLogs()}
 $('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();closeSeg();
  if(v==='+'){const have=new Set([...$('fs').options].map(o=>o.value));let n='untitled',i=2;while(have.has(n+'.md'))n='untitled-'+i++;
-  setName(n);ed.replaceChildren();refresh(true);openSeg();dirty=true;await save();return list()}
- const t=await get(v);if(t===null){openSeg();return say('파일 읽기 실패')}setName(v.slice(0,-3));load(t);openSeg();try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
+  setName(n);wkTag=newTag();ed.replaceChildren();refresh(true);openSeg();dirty=true;await save();return list()}
+ const t=await get(v);if(t===null){openSeg();return say('파일 읽기 실패')}setName(v.slice(0,-3));load(takeTag(t));openSeg();try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
  dirty=false;ed.focus()};
 /* 파일명 변경: 새 이름으로 저장 후 이전 파일 삭제 (같은 이름이 있으면 중단) */
 function editTitle(){tm.style.display='none';$('tt').classList.add('hide');$('ti').classList.remove('hide');$('ti').focus();$('ti').select()}
@@ -342,7 +349,7 @@ async function init(){
  const s=await get('settings.json');if(s)try{applySettings(JSON.parse(s))}catch(e){}ui();
  try{logs(await readLogs())}catch(e){say('뽀모 기록 파일을 읽을 수 없습니다 (파일은 그대로 유지됩니다)')}
  const last=localStorage.getItem('tdtd_last_file'),t=last&&await get(last);
- if(t!==null&&t!==undefined&&last){setName(last.slice(0,-3));load(t)}
+ if(t!==null&&t!==undefined&&last){setName(last.slice(0,-3));load(takeTag(t))}
  try{const d=JSON.parse(localStorage.getItem('tdtd_draft')||'null');   // 저장되지 못한 내용 복구
   if(d&&d.name===name&&d.html&&confirm('저장되지 않은 내용이 남아 있습니다. 복구할까요?')){load(d.html);dirty=true;save()}}catch(e){}
 }
