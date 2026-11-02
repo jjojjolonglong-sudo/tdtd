@@ -29,6 +29,7 @@ header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;al
 #wrap{min-height:100%;padding:48px 24px;transition:padding .2s}
 #ed{outline:none;text-align:justify;padding-bottom:50vh;min-height:60vh;word-break:break-word}
 #ed:empty:before{content:"여기에 글을 작성하세요...";color:#9ca3af;pointer-events:none}
+#ed.blank>div:first-child::before{content:"여기에 글을 작성하세요...";color:#9ca3af;pointer-events:none;position:absolute;left:0;top:0}
 #ed div,#ed p{position:relative;margin:0}
 #ed.gap>div,#ed.gap>p{margin-bottom:1em}
 #ed.ind,#ed.ind div,#ed.ind p{text-indent:1em}
@@ -131,7 +132,7 @@ function clean(html){
   const a=/text-align:\s*(left|right|center|justify)/.exec(n.getAttribute('style')||'');if(a&&!m)e.style.textAlign=a[1];
   if(t!=='BR')walk(n,e);dst.append(e)}})(d.body,out);
  return out}
-function load(html){ed.replaceChildren(...clean(html).childNodes);editing=null;refresh(true)}
+function load(html){ed.replaceChildren(...clean(html).childNodes);editing=null;ensure();seed();refresh(true)}
 
 /* ---------- 레이아웃 ---------- */
 function layout(){
@@ -151,7 +152,7 @@ function syncMemos(){
   const mb=parseFloat(getComputedStyle(b).marginBottom)||0;b.style.minHeight=Math.max(0,Math.ceil(m.offsetHeight-mb))+'px'});
  ed.querySelectorAll('.memo').forEach(m=>{if(m!==editing)m.setAttribute('contenteditable','false')})}
 let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim();
- $('cc').textContent='글자수 '+t.length.toLocaleString()+' ('+t.replace(/\s/g,'').length.toLocaleString()+')';layout()};now?f():rT=setTimeout(f,200)}
+ ed.classList.toggle('blank',!t);$('cc').textContent='글자수 '+t.length.toLocaleString()+' ('+t.replace(/\s/g,'').length.toLocaleString()+')';layout()};now?f():rT=setTimeout(f,200)}
 function keepVisible(){
  const s=getSelection();if(!s.rangeCount)return;let b=s.getRangeAt(0).getBoundingClientRect();
  if(!b.height){const k=blockOf(s.anchorNode);if(!k)return;b=k.getBoundingClientRect()}
@@ -195,7 +196,7 @@ async function save(){
  finally{saving=false;if(again){again=false;save()}}}
 const flush=async()=>{if(dirty){clearTimeout(saveT);while(saving)await new Promise(r=>setTimeout(r,50));await save()}};
 function input(){
- dirty=true;st.textContent='저장 중...';refresh();requestAnimationFrame(keepVisible);
+ ed.classList.toggle('blank',!ed.textContent.trim());dirty=true;st.textContent='저장 중...';refresh();requestAnimationFrame(keepVisible);
  clearTimeout(saveT);saveT=setTimeout(()=>{draft();save()},1000);
  if(Date.now()-lastSave>15000){draft();save()}}
 /* 문단 병합/삭제 시 메모 유실 방지: 지우기 전에 관련 문단의 메모를 떼어 두었다가, 합쳐진 문단에 다시 붙임(메모가 둘이면 syncMemos가 줄바꿈으로 병합) */
@@ -216,7 +217,7 @@ ed.addEventListener('input',e=>{
   if(m&&pv&&BLK.includes(pv.tagName)&&!pv.querySelector(':scope>.memo')&&m!==editing){pv.appendChild(m);refresh(true)}}
  if(e.data==='.'&&!e.isComposing){const s=getSelection(),n=s.anchorNode,o=s.anchorOffset;   // ... → …
   if(s.isCollapsed&&n&&n.nodeType===3&&o>=3&&n.nodeValue.slice(o-3,o)==='...'){const r=document.createRange();r.setStart(n,o-3);r.setEnd(n,o);s.removeAllRanges();s.addRange(r);document.execCommand('insertText',false,'…')}}
- if(!e.isComposing)ensure();   // 한글 조합 중에 DOM을 옮기면 조합이 끊겨 첫 글자 자리에서 계속 덮어써져요 → 조합이 끝난 뒤에 감싸요
+ if(!e.isComposing){ensure();seed()}   // 한글 조합 중에 DOM을 옮기면 조합이 끊겨 첫 글자 자리에서 계속 덮어써져요 → 조합이 끝난 뒤에 감싸요
  input()});
 ed.addEventListener('compositionend',()=>{ensure()});
 /* 따옴표: 직선 " ' → 앞뒤 구분되는 “ ” ‘ ’ (앞 글자가 없거나 공백·여는 괄호면 여는 따옴표) */
@@ -237,7 +238,7 @@ async function list(){
 function setName(n){name=n;$('tt').textContent=n;$('ti').value=n;showLogs()}
 $('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();closeSeg();
  if(v==='+'){const have=new Set([...$('fs').options].map(o=>o.value));let n='untitled',i=2;while(have.has(n+'.md'))n='untitled-'+i++;
-  setName(n);wkTag=newTag();ed.replaceChildren();refresh(true);openSeg();dirty=true;await save();return list()}
+  setName(n);wkTag=newTag();ed.replaceChildren();seed();refresh(true);openSeg();dirty=true;await save();return list()}
  const t=await get(v);if(t===null){openSeg();return say('파일 읽기 실패')}setName(v.slice(0,-3));load(takeTag(t));openSeg();try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
  dirty=false;ed.focus()};
 /* 파일명 변경: 새 이름으로 저장 후 이전 파일 삭제 (같은 이름이 있으면 중단) */
@@ -271,6 +272,15 @@ function ensure(){ // 에디터 직속 맨 텍스트를 <div>로 감싸 문단 �
  const fl=()=>{if(run.some(n=>n.nodeType!==3||n.nodeValue.trim())){const d=document.createElement('div');run[0].before(d);d.append(...run)}run=[]};
  [...ed.childNodes].forEach(n=>{n.nodeType===1&&BLK.includes(n.tagName)?fl():run.push(n)});fl();
  if(sv)try{const q=document.createRange();q.setStart(sv[0],sv[1]);q.setEnd(sv[2],sv[3]);s.removeAllRanges();s.addRange(q)}catch(e){}}
+/* 편집기는 항상 문단(div)을 하나 이상 가져요. 첫 줄이 '맨 글자'로 시작하면 서식(정렬·들여쓰기 등)이 안 붙고 한글 입력이 어긋나요(고질적인 첫 줄 문제의 원인) */
+function seed(){
+  if([...ed.children].some(c=>BLK.includes(c.tagName)))return;
+  if([...ed.childNodes].some(n=>n.nodeType===3&&n.nodeValue.trim()))return ensure();   // 맨 글자가 있으면 문단으로 감싸요
+  const d=document.createElement('div');d.append(document.createElement('br'));ed.replaceChildren(d);
+  if(document.activeElement===ed){const s=getSelection(),r=document.createRange();r.setStart(d,0);r.collapse(true);s.removeAllRanges();s.addRange(r)}
+}
+ed.addEventListener('focus',()=>seed());
+seed();ed.classList.toggle('blank',!ed.textContent.trim());
 function selBlocks(){
  const s=getSelection();if(!s.rangeCount||s.isCollapsed)return[];const r=s.getRangeAt(0);if(!ed.contains(r.commonAncestorContainer))return[];
  const a=[...ed.children].filter(b=>BLK.includes(b.tagName)&&r.intersectsNode(b));
