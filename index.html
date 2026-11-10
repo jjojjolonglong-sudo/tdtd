@@ -23,6 +23,8 @@ header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;al
 #tt{padding:4px 8px;border:1px solid transparent;border-radius:4px;font-size:14px;font-weight:500;cursor:pointer}
 #tt:hover{border-color:#d1d5db}
 #st{color:#9ca3af;font-size:11px}
+#hc{flex:1 1 auto;text-align:center;white-space:nowrap;font-size:15px;color:#6b7280}#hc b{color:#111827;font-weight:600;font-variant-numeric:tabular-nums}#hc i{font-style:normal;color:#d1d5db;margin:0 4px}
+header.nw #hc{order:3;flex-basis:100%}
 .hide{display:none!important}
 #area{flex:1;position:relative;overflow:hidden}
 #main{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:none}
@@ -67,6 +69,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);bo
   <button id="bx" class="tb exp">내보내기</button>
   <span id="st">폴더 미지정</span>
  </div>
+ <div id="hc" title="공백 미포함 글자수"><span>오늘</span> <b id="hct">0</b> <i>/</i> <span>전체</span> <b id="hca">0</b></div>
  <div class="g">
   <button id="bf" class="tb sw" title="글씨체">굴림체</button><span class="sep"></span>
   <button id="ba" class="tb sw" title="커서가 있는 문단 정렬">양쪽</button>
@@ -143,6 +146,9 @@ function layout(){
  else{const side=Math.max(24,pn,mn);let w=Math.min(MW[S.margin],W-2*side);w=Math.max(w,Math.min(320,W-48));l=r=Math.max(24,(W-w)/2)}
  wrap.style.paddingLeft=l+'px';wrap.style.paddingRight=r+'px'}
 new ResizeObserver(layout).observe(main);
+/* 위 줄 가운데 글자수: 자리가 모자라면(버튼 묶음이 밀려 내려가면) 맨 아래 줄 가운데로 */
+const hdr=document.querySelector('header'),fitHc=()=>{hdr.classList.remove('nw');const g=hdr.querySelectorAll('.g');if(g[1].offsetTop>g[0].offsetTop+4)hdr.classList.add('nw')};
+new ResizeObserver(fitHc).observe(hdr);
 function syncMemos(){
  ed.querySelectorAll('.has-memo').forEach(b=>{if(!b.querySelector(':scope>.memo')){b.classList.remove('has-memo');b.style.minHeight=''}});
  ed.querySelectorAll('.memo').forEach(m=>{const b=m.parentElement;if(!b||b===ed)return;
@@ -158,7 +164,7 @@ let DAY={};try{DAY=JSON.parse(localStorage.getItem('tdtd_daily')||'{}')||{}}catc
 const dayPut=()=>{const d=dayKey();for(const k in DAY)if(DAY[k].d!==d)delete DAY[k];try{localStorage.setItem('tdtd_daily',JSON.stringify(DAY))}catch(e){}};
 function dayBase(ws,wos){const d=dayKey();let b=DAY[name];if(!b||b.d!==d){b=DAY[name]={d,ws,wos};dayPut()}return b}
 let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim(),ws=t.length,wos=t.replace(/\s/g,'').length,b=dayBase(ws,wos),N=v=>v.toLocaleString();
- ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;layout()};now?f():rT=setTimeout(f,200)}
+ ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;$('hct').textContent=N(wos-b.wos);$('hca').textContent=N(wos);layout()};now?f():rT=setTimeout(f,200)}
 setInterval(()=>{const b=DAY[name];if(b&&b.d!==dayKey())refresh(true)},60000);   // 자정이 지나면 그 순간 글자수부터 다시 셈
 function keepVisible(){
  const s=getSelection();if(!s.rangeCount)return;let b=s.getRangeAt(0).getBoundingClientRect();
