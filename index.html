@@ -5,7 +5,7 @@
 <title>집필기</title>
 <style>
 *{box-sizing:border-box}
-html,body{height:100%;margin:0}
+html,body{height:100%;margin:0;overscroll-behavior:none}
 body{font:13px system-ui,-apple-system,'Segoe UI',sans-serif;color:#111827;background:#fff;display:flex;flex-direction:column;overflow:hidden}
 button,select,input{font:inherit}
 button{border:0;cursor:pointer}
@@ -25,7 +25,7 @@ header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;al
 #st{color:#9ca3af;font-size:11px}
 .hide{display:none!important}
 #area{flex:1;position:relative;overflow:hidden}
-#main{position:absolute;inset:0;overflow-y:auto}
+#main{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:none}
 #wrap{min-height:100%;padding:48px 24px;transition:padding .2s}
 #ed{outline:none;text-align:justify;padding-bottom:50vh;min-height:60vh;word-break:break-word}
 #ed:empty:before{content:"여기에 글을 작성하세요...";color:#9ca3af;pointer-events:none}
@@ -75,14 +75,15 @@ footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);bo
   <button id="bp" class="tb tg">문단간격</button><span class="sep"></span>
   <button id="bm" class="tb sw">여백 중간</button>
   <button id="bv" class="tb tg on">뽀모</button><span class="sep"></span>
-  <button id="bu" class="tb">🔓 전체 잠금 해제</button>
+  <button id="bu" class="tb">🔓 전체 잠금 해제</button><span class="sep"></span>
+  <button id="brl" class="tb">새로고침</button>
  </div>
 </header>
 <div id="area">
  <aside id="pomo"><div><button id="pb">시작</button> <b id="pd" style="margin-left:6px;color:#374151">작업중 25:00</b></div><div id="pl"></div></aside>
  <main id="main"><div id="wrap"><div id="ed" contenteditable="true" spellcheck="false"></div></div></main>
 </div>
-<footer id="cc">글자수 0 (0)</footer>
+<footer id="cc">오늘 0 (0) / 전체 0 (0)</footer>
 <script>
 const $=i=>document.getElementById(i),ed=$('ed'),main=$('main'),wrap=$('wrap'),st=$('st'),cm=$('cm'),tm=$('tm');
 const FONTS=[['굴림체',"Gulim,'굴림',sans-serif"],['돋움체',"Dotum,'돋움',sans-serif"],['바탕체',"Batang,'바탕',serif"]],
@@ -151,8 +152,14 @@ function syncMemos(){
   b.classList.add('has-memo');
   const mb=parseFloat(getComputedStyle(b).marginBottom)||0;b.style.minHeight=Math.max(0,Math.ceil(m.offsetHeight-mb))+'px'});
  ed.querySelectorAll('.memo').forEach(m=>{if(m!==editing)m.setAttribute('contenteditable','false')})}
-let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim();
- ed.classList.toggle('blank',!t);$('cc').textContent='글자수 '+t.length.toLocaleString()+' ('+t.replace(/\s/g,'').length.toLocaleString()+')';layout()};now?f():rT=setTimeout(f,200)}
+/* 오늘 글자수: 파일마다 '오늘 처음 열었을 때(또는 자정 넘은 순간)'의 글자수를 기준으로 기억해 두고 지금과의 차이를 보여요(이 브라우저에 저장) */
+const dayKey=()=>{const n=new Date(),p=x=>String(x).padStart(2,'0');return`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`};
+let DAY={};try{DAY=JSON.parse(localStorage.getItem('tdtd_daily')||'{}')||{}}catch(e){}
+const dayPut=()=>{const d=dayKey();for(const k in DAY)if(DAY[k].d!==d)delete DAY[k];try{localStorage.setItem('tdtd_daily',JSON.stringify(DAY))}catch(e){}};
+function dayBase(ws,wos){const d=dayKey();let b=DAY[name];if(!b||b.d!==d){b=DAY[name]={d,ws,wos};dayPut()}return b}
+let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim(),ws=t.length,wos=t.replace(/\s/g,'').length,b=dayBase(ws,wos),N=v=>v.toLocaleString();
+ ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;layout()};now?f():rT=setTimeout(f,200)}
+setInterval(()=>{const b=DAY[name];if(b&&b.d!==dayKey())refresh(true)},60000);   // 자정이 지나면 그 순간 글자수부터 다시 셈
 function keepVisible(){
  const s=getSelection();if(!s.rangeCount)return;let b=s.getRangeAt(0).getBoundingClientRect();
  if(!b.height){const k=blockOf(s.anchorNode);if(!k)return;b=k.getBoundingClientRect()}
@@ -337,6 +344,7 @@ async function writeLogs(a){ // 쓰기 직전 이전 정상 내용을 .bak.json 
  try{const o=await get('pomodoro_logs.json');if(o)await put('pomodoro_logs.bak.json',o)}catch(e){}
  await put('pomodoro_logs.json',JSON.stringify(a,null,2))}
 async function renameLogs(o,n){ // 파일명을 바꾸면 이전 기록의 파일명도 같이 바꿈
+ if(DAY[o]){DAY[n]=DAY[o];delete DAY[o];dayPut()}
  if(P.seg&&P.seg.file===o)P.seg.file=n;P.segs.forEach(g=>{if(g.file===o)g.file=n});
  LOGS.forEach(l=>{if(l.file===o)l.file=n});if(!dir)return;let a;try{a=await readLogs()}catch(x){return}
  if(!a.some(l=>l.file===o))return;a.forEach(l=>{if(l.file===o)l.file=n});try{await writeLogs(a)}catch(x){}logs(a)}
@@ -366,6 +374,7 @@ async function init(){
   if(d&&d.name===name&&d.html&&confirm('저장되지 않은 내용이 남아 있습니다. 복구할까요?')){load(d.html);dirty=true;save()}}catch(e){}
 }
 async function pick(){try{dir=await showDirectoryPicker({mode:'readwrite'});await idb('put',dir);await init()}catch(e){}}
+$('brl').onclick=async()=>{await flush();dirty=false;location.reload()};
 $('gb1').onclick=pick;$('bd').onclick=async()=>{await flush();pick()};
 $('gb2').onclick=async()=>{try{if(await saved.requestPermission({mode:'readwrite'})==='granted'){dir=saved;await init()}}catch(e){}};
 (async()=>{
