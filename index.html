@@ -43,7 +43,7 @@ header.nw #hc{order:3;flex-basis:100%}
 #pomo{position:absolute;left:0;top:0;bottom:0;width:256px;padding:16px 16px 56px;flex-direction:column;justify-content:space-between;z-index:20;pointer-events:none;user-select:none;font-size:12px}
 #pomo button{pointer-events:auto;padding:4px 12px;border-radius:4px;background:#e5e7eb;color:#374151;font-weight:500}
 #pl{color:#6b7280;font-size:10px;display:grid;gap:3px}
-.pe{display:flex;gap:6px;white-space:nowrap}
+.pe{display:flex;gap:6px;white-space:nowrap}.pe span:first-child{width:4.6em}
 .ph{color:#374151;font-weight:600;margin-top:4px}
 .pd{color:#9ca3af}
 footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);border-top:1px solid #e5e7eb;padding:8px 24px;color:#6b7280;font-size:12px;text-align:right;user-select:none;z-index:40}
@@ -77,13 +77,13 @@ footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);bo
   <button id="bi" class="tb tg">들여쓰기</button>
   <button id="bp" class="tb tg">문단간격</button><span class="sep"></span>
   <button id="bm" class="tb sw">여백 중간</button>
-  <button id="bv" class="tb tg on">뽀모</button><span class="sep"></span>
+  <button id="bv" class="tb tg on">기록</button><span class="sep"></span>
   <button id="bu" class="tb">🔓 전체 잠금 해제</button><span class="sep"></span>
   <button id="brl" class="tb">새로고침</button>
  </div>
 </header>
 <div id="area">
- <aside id="pomo"><div><button id="pb">시작</button> <b id="pd" style="margin-left:6px;color:#374151">작업중 25:00</b></div><div id="pl"></div></aside>
+ <aside id="pomo"><div><button id="pb">초기화</button> <b id="pd" style="margin-left:6px;color:#374151"></b></div><div id="pl"></div></aside>
  <main id="main"><div id="wrap"><div id="ed" contenteditable="true" spellcheck="false"></div></div></main>
 </div>
 <footer id="cc">오늘 0 (0) / 전체 0 (0)</footer>
@@ -94,7 +94,7 @@ const FONTS=[['굴림체',"Gulim,'굴림',sans-serif"],['돋움체',"Dotum,'돋�
  AL=[['justify','양쪽','justifyFull'],['left','왼쪽','justifyLeft'],['center','가운데','justifyCenter'],['right','오른쪽','justifyRight']],
  BLK=['DIV','P','H1','H2','H3','H4','H5','H6','LI','UL','OL','BLOCKQUOTE','PRE'];
 let S={font:0,lead:1,indent:0,para:0,margin:2},dir=null,saved=null,name='untitled',dirty=false,saving=false,again=false,saveT=0,lastSave=Date.now(),
- pomoOn=true,editing=null,alignI=0,cur=[],P={run:false,work:true,left:1500,end:0,sess:false,seg:null,segs:[]},statT=0;
+ pomoOn=true,editing=null,alignI=0,cur=[],statT=0;
 
 /* ---------- 공통 ---------- */
 const say=m=>{st.textContent=m;clearTimeout(statT);statT=setTimeout(()=>st.textContent=dir?'자동저장 켜짐':'폴더 미지정',2500)};
@@ -158,14 +158,28 @@ function syncMemos(){
   b.classList.add('has-memo');
   const mb=parseFloat(getComputedStyle(b).marginBottom)||0;b.style.minHeight=Math.max(0,Math.ceil(m.offsetHeight-mb))+'px'});
  ed.querySelectorAll('.memo').forEach(m=>{if(m!==editing)m.setAttribute('contenteditable','false')})}
-/* 오늘 글자수: 파일마다 '오늘 처음 열었을 때(또는 자정 넘은 순간)'의 글자수를 기준으로 기억해 두고 지금과의 차이를 보여요(이 브라우저에 저장) */
-const dayKey=()=>{const n=new Date(),p=x=>String(x).padStart(2,'0');return`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`};
-let DAY={};try{DAY=JSON.parse(localStorage.getItem('tdtd_daily')||'{}')||{}}catch(e){}
-const dayPut=()=>{const d=dayKey();for(const k in DAY)if(DAY[k].d!==d)delete DAY[k];try{localStorage.setItem('tdtd_daily',JSON.stringify(DAY))}catch(e){}};
-function dayBase(ws,wos){const d=dayKey();let b=DAY[name];if(!b||b.d!==d){b=DAY[name]={d,ws,wos};dayPut()}return b}
-let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim(),ws=t.length,wos=t.replace(/\s/g,'').length,b=dayBase(ws,wos),N=v=>v.toLocaleString();
- ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;$('hct').textContent=N(wos-b.wos);$('hca').textContent=N(wos);layout()};now?f():rT=setTimeout(f,200)}
-setInterval(()=>{const b=DAY[name];if(b&&b.d!==dayKey())refresh(true)},60000);   // 자정이 지나면 그 순간 글자수부터 다시 셈
+/* 글자수 기록: 파일마다 '초기화'를 누른 때부터 셈(자정에 저절로 바뀌지 않음).
+   초기화하면 그동안 쓴 양을 '시작한 날짜' 기록으로 저장 → 원고 폴더 daily_counts.json(+이 브라우저에도 사본)
+   DC = { 파일명: { cur:{t:시작 시각(ms), ws:그때 공포, wos:그때 공미포}, days:[{d:'YYYY-MM-DD', ws:쓴 공포, wos:쓴 공미포}] } } */
+const ymd=t=>{const n=new Date(t),p=x=>String(x).padStart(2,'0');return`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`};
+let DC={};try{DC=JSON.parse(localStorage.getItem('tdtd_counts')||'{}')||{}}catch(e){}
+try{const o=JSON.parse(localStorage.getItem('tdtd_daily')||'null');if(o){for(const k in o)if(!DC[k])DC[k]={cur:{t:Date.now(),ws:o[k].ws,wos:o[k].wos},days:[]};localStorage.removeItem('tdtd_daily')}}catch(e){}   // 예전 '오늘' 기준값 이어받기
+let dcT=0;function dcSave(){try{localStorage.setItem('tdtd_counts',JSON.stringify(DC))}catch(e){}clearTimeout(dcT);dcT=setTimeout(async()=>{if(dir)try{await put('daily_counts.json',JSON.stringify(DC,null,1))}catch(e){}},800)}
+function dcOf(ws,wos){let f=DC[name];if(!f)f=DC[name]={days:[]};if(!f.days)f.days=[];if(!f.cur){f.cur={t:Date.now(),ws,wos};dcSave()}return f}
+async function dcLoad(){const t=await get('daily_counts.json');if(!t)return dcSave();try{const F=JSON.parse(t);for(const k in DC)if(!F[k])F[k]=DC[k];DC=F;try{localStorage.setItem('tdtd_counts',JSON.stringify(DC))}catch(e){}}catch(e){say('글자수 기록 파일을 읽을 수 없습니다 (파일은 그대로 둡니다)')}}
+const md=d=>{const[,m,dd]=d.split('-');return`${+m}월 ${+dd}일`};
+function dcReset(){const t=txt(ed).trim(),ws=t.length,wos=t.replace(/\s/g,'').length,f=dcOf(ws,wos),c=f.cur,a=ws-c.ws,b=wos-c.wos,d=ymd(c.t),N=v=>v.toLocaleString();
+ if(!confirm(`${md(d)} ${new Date(c.t).toTimeString().slice(0,5)}부터 쓴 글 ${N(a)} (${N(b)})자를 ${md(d)} 기록으로 저장하고, 지금부터 새로 셀까요?`))return;
+ if(a||b){const e=f.days.find(x=>x.d===d);if(e){e.ws+=a;e.wos+=b}else f.days.push({d,ws:a,wos:b});f.days.sort((x,y)=>x.d<y.d?-1:1)}
+ f.cur={t:Date.now(),ws,wos};dcSave();refresh(true);say(`${md(d)} 기록 저장, 새로 세기 시작`)}
+$('pb').onclick=dcReset;
+function showDC(f,ws,wos){const N=v=>v.toLocaleString(),c=f.cur,s=new Date(c.t),p=x=>String(x).padStart(2,'0');
+ $('pd').textContent=`${s.getMonth()+1}/${s.getDate()} ${p(s.getHours())}:${p(s.getMinutes())}부터`;
+ const row=(cl,a,b)=>{const d=document.createElement('div');d.className='pe '+cl;[a,b].forEach(x=>{const e=document.createElement('span');e.textContent=x;d.append(e)});return d};
+ const el=[row('ph','지금',`${N(ws-c.ws)} (${N(wos-c.wos)})`),...f.days.slice(-10).reverse().map(x=>row('pd',md(x.d),`${N(x.ws)} (${N(x.wos)})`))];
+ $('pl').replaceChildren(...el)}
+let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim(),ws=t.length,wos=t.replace(/\s/g,'').length,f=dcOf(ws,wos),b=f.cur,N=v=>v.toLocaleString();
+ ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;$('hct').textContent=N(wos-b.wos);$('hca').textContent=N(wos);showDC(f,ws,wos);layout()};now?f():rT=setTimeout(f,200)}
 function keepVisible(){
  const s=getSelection();if(!s.rangeCount)return;let b=s.getRangeAt(0).getBoundingClientRect();
  if(!b.height){const k=blockOf(s.anchorNode);if(!k)return;b=k.getBoundingClientRect()}
@@ -248,11 +262,11 @@ async function list(){
  const f=$('fs');f.innerHTML='<option value="">파일 목록</option><option value="+">＋ 새 파일</option>';
  if(!dir)return;const a=[];for await(const e of dir.values())if(e.kind==='file'&&e.name.endsWith('.md'))a.push(e.name);
  a.sort((x,y)=>x.localeCompare(y,'ko')).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n.slice(0,-3);f.appendChild(o)});f.value=''}
-function setName(n){name=n;$('tt').textContent=n;$('ti').value=n;showLogs()}
-$('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();closeSeg();
+function setName(n){name=n;$('tt').textContent=n;$('ti').value=n}
+$('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();
  if(v==='+'){const have=new Set([...$('fs').options].map(o=>o.value));let n='untitled',i=2;while(have.has(n+'.md'))n='untitled-'+i++;
-  setName(n);wkTag=newTag();ed.replaceChildren();seed();refresh(true);openSeg();dirty=true;await save();return list()}
- const t=await get(v);if(t===null){openSeg();return say('파일 읽기 실패')}setName(v.slice(0,-3));load(takeTag(t));openSeg();try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
+  setName(n);wkTag=newTag();ed.replaceChildren();seed();refresh(true);dirty=true;await save();return list()}
+ const t=await get(v);if(t===null){return say('파일 읽기 실패')}setName(v.slice(0,-3));load(takeTag(t));try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
  dirty=false;ed.focus()};
 /* 파일명 변경: 새 이름으로 저장 후 이전 파일 삭제 (같은 이름이 있으면 중단) */
 function editTitle(){tm.style.display='none';$('tt').classList.add('hide');$('ti').classList.remove('hide');$('ti').focus();$('ti').select()}
@@ -319,61 +333,14 @@ $('mmemo').onclick=()=>{const b=cur[0];cur=[];if(!b)return;const old=b.querySele
 $('bu').onclick=()=>{const a=[...ed.querySelectorAll('.lk')];if(!a.length)return say('잠긴 문단이 없습니다');
  a.forEach(b=>{b.removeAttribute('contenteditable');b.classList.remove('lk')});refresh();input();say('모든 문단 잠금 해제')};
 
-/* ---------- 뽀모도로 (시작 시각 기준 → 백그라운드에서도 정확) ---------- */
-const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-const pshow=()=>$('pd').textContent=(P.work?'작업중 ':'휴식중 ')+fmt(Math.max(0,P.left));
-$('pb').onclick=()=>{P.run=!P.run;if(P.run){P.end=Date.now()+P.left*1000;if(P.work&&!P.sess)beginSess()}$('pb').textContent=P.run?'정지':'시작'};
-const cnt=()=>{const t=txt(ed).trim();return[t.length,t.replace(/\s/g,'').length]};
-/* 작업(뽀모) 세션: 파일별 구간(segment)으로 시작/끝 글자수를 기록. 세션 중 다른 파일을 열면 이전 파일 구간을 닫고 새 구간을 엶 */
-const openSeg=()=>{if(P.sess)P.seg={file:name,s:cnt()}};
-const closeSeg=()=>{if(P.seg){P.segs.push({...P.seg,e:cnt()});P.seg=null}};
-function beginSess(){P.sess=true;P.segs=[];openSeg()}
-setInterval(async()=>{if(!P.run)return;P.left=Math.ceil((P.end-Date.now())/1000);
- if(P.left<=0){if(P.work){closeSeg();P.sess=false;P.work=false;P.left=300;P.end=Date.now()+300000;await record(P.segs);P.segs=[]}
-  else{P.work=true;P.left=1500;P.end=Date.now()+1500000;beginSess()}}pshow()},500);
-async function record(segs){
- const n=new Date(),p=x=>String(x).padStart(2,'0'),date=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,time=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
- // 여러 파일을 거쳤다면 변화 없는 구간은 생략 (하나뿐이면 변화가 없어도 기록)
- const keep=segs.length>1?segs.filter(g=>g.s[0]!==g.e[0]||g.s[1]!==g.e[1]):segs;
- const es=keep.map(g=>({date,time,file:g.file,withSpaces:g.e[0],withoutSpaces:g.e[1]}));   // 시작 글자수는 저장하지 않음(앞 기록에서 계산)
- if(!es.length)return;
- if(!dir){LOGS.push(...es);return showLogs()}
- let a;try{a=await readLogs()}catch(x){   // 기록 파일을 읽을 수 없으면(문법 오류 등) 원본은 절대 건드리지 않고 따로 보관
-  try{let q=[];try{q=JSON.parse(await get('pomodoro_logs.pending.json')||'[]')}catch(y){}q.push(...es);await put('pomodoro_logs.pending.json',JSON.stringify(q,null,2))}catch(y){}
-  LOGS.push(...es);showLogs();return say('뽀모 기록 파일을 읽을 수 없어 pending 파일에 따로 저장했습니다')}
- a.push(...es);try{await writeLogs(a)}catch(x){say('뽀모 기록 저장 실패')}
- logs(a)}
-async function readLogs(){ // 파일이 없으면 [], 읽기/파싱 실패는 예외 (빈 파일로 오인하지 않음)
- let h;try{h=await dir.getFileHandle('pomodoro_logs.json')}catch(e){if(e.name==='NotFoundError')return[];throw e}
- const t=await(await h.getFile()).text();if(!t.trim())return[];const a=JSON.parse(t);if(!Array.isArray(a))throw new Error('형식 오류');return a}
-async function writeLogs(a){ // 쓰기 직전 이전 정상 내용을 .bak.json 으로 보관
- try{const o=await get('pomodoro_logs.json');if(o)await put('pomodoro_logs.bak.json',o)}catch(e){}
- await put('pomodoro_logs.json',JSON.stringify(a,null,2))}
-async function renameLogs(o,n){ // 파일명을 바꾸면 이전 기록의 파일명도 같이 바꿈
- if(DAY[o]){DAY[n]=DAY[o];delete DAY[o];dayPut()}
- if(P.seg&&P.seg.file===o)P.seg.file=n;P.segs.forEach(g=>{if(g.file===o)g.file=n});
- LOGS.forEach(l=>{if(l.file===o)l.file=n});if(!dir)return;let a;try{a=await readLogs()}catch(x){return}
- if(!a.some(l=>l.file===o))return;a.forEach(l=>{if(l.file===o)l.file=n});try{await writeLogs(a)}catch(x){}logs(a)}
-let LOGS=[];
-function logs(a){if(a)LOGS=a;showLogs()}
-function showLogs(){ // 현재 파일 기록만. 시작 글자수 = 앞 기록의 끝 글자수(없으면 0)
- const n=new Date(),p=x=>String(x).padStart(2,'0'),today=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,N=v=>Number(v).toLocaleString(),sg=v=>(v>0?'+':'')+N(v);
- const all=LOGS.filter(l=>l.file===name).map(l=>({date:l.date,time:String(l.time||''),ws:l.withSpaces!==undefined?l.withSpaces:l.end,wos:l.withoutSpaces!==undefined?l.withoutSpaces:l.endNoSpace}))
-  .filter(l=>l.date&&typeof l.wos==='number').sort((x,y)=>(x.date+x.time<y.date+y.time?-1:1));
- all.forEach((l,i)=>{l.from=i?all[i-1].wos:0});
- const day=d=>{const g=all.filter(l=>l.date===d);return g.length?{s:g[0].from,e:g[g.length-1].wos,g}:null};
- const row=(c,...t)=>{const d=document.createElement('div');d.className=c;t.forEach(x=>{const e=document.createElement('span');e.textContent=x;d.append(e)});return d};
- const rg=(s,e)=>`${N(s)} → ${N(e)} (${sg(e-s)})`,el=[];
- [...new Set(all.map(l=>l.date))].filter(d=>d!==today).sort().slice(-5).forEach(d=>{const t=day(d),[,m,dd]=d.split('-');el.push(row('pe pd',`${+m}월 ${+dd}일`,rg(t.s,t.e)))});
- const t=day(today),h=row('pe ph',`${n.getMonth()+1}월 ${n.getDate()}일`);if(t)h.append(Object.assign(document.createElement('span'),{textContent:rg(t.s,t.e)}));el.push(h);
- if(t)t.g.slice(-5).forEach(l=>{const d=row('pe','~'+l.time.slice(0,5),rg(l.from,l.wos));if(l.ws!==undefined)d.title=`공백포함 ${N(l.ws)}`;el.push(d)});
- $('pl').replaceChildren(...el)}
+async function renameLogs(o,n){ // 파일명을 바꾸면 글자수 기록도 새 이름으로 옮김
+ if(DC[o]){DC[n]=DC[o];delete DC[o];dcSave()}}
 
 /* ---------- 시작 ---------- */
 async function init(){
  $('gate').classList.add('hide');say('자동저장 켜짐');await list();
  const s=await get('settings.json');if(s)try{applySettings(JSON.parse(s))}catch(e){}ui();
- try{logs(await readLogs())}catch(e){say('뽀모 기록 파일을 읽을 수 없습니다 (파일은 그대로 유지됩니다)')}
+ await dcLoad();
  const last=localStorage.getItem('tdtd_last_file'),t=last&&await get(last);
  if(t!==null&&t!==undefined&&last){setName(last.slice(0,-3));load(takeTag(t))}
  try{const d=JSON.parse(localStorage.getItem('tdtd_draft')||'null');   // 저장되지 못한 내용 복구
