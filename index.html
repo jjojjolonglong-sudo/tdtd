@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: 'self'; manifest-src 'self'; worker-src 'self'">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#ffffff">
 <title>집필기</title>
 <style>
 *{box-sizing:border-box}
@@ -80,6 +81,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);bo
   <button id="bm" class="tb sw">여백 중간</button>
   <button id="bv" class="tb tg on">기록</button><span class="sep"></span>
   <button id="bu" class="tb">🔓 전체 잠금 해제</button><span class="sep"></span>
+  <button id="bin" class="tb" hidden>설치</button>
   <button id="brl" class="tb">새로고침</button>
  </div>
 </header>
@@ -371,6 +373,14 @@ async function init(){
   if(d&&d.name===name&&d.html&&confirm('저장되지 않은 내용이 남아 있습니다. 복구할까요?')){load(d.html);dirty=true;save()}}catch(e){}
 }
 async function pick(){try{dir=await showDirectoryPicker({mode:'readwrite'});await idb('put',dir);await init()}catch(e){}}
+/* 앱 설치: 설치된 앱으로 열면 버튼 숨김. 크롬이 허락하면 바로 설치, 아니면 방법 안내 */
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+let dp=null;if(!(matchMedia('(display-mode: standalone)').matches||navigator.standalone))$('bin').hidden=false;
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e});
+addEventListener('appinstalled',()=>{dp=null;$('bin').hidden=true});
+$('bin').onclick=async()=>{if(dp){dp.prompt();await dp.userChoice;dp=null;return}
+ let had=false;try{had=navigator.getInstalledRelatedApps&&(await navigator.getInstalledRelatedApps()).length>0}catch(e){}
+ alert((had?'tdtd가 이미 이 기기에 설치돼 있어요.\n':'')+'지금은 바로 설치할 수 없어요.\n이미 깔려 있다면 기존 tdtd를 지우고 이 페이지를 새로고침하면 설치 버튼이 동작해요.\n또는 크롬 주소창 오른쪽의 설치 아이콘(또는 메뉴 ⋮ → "앱 설치")을 눌러도 돼요.')};
 $('brl').onclick=async()=>{await flush();dirty=false;location.reload()};
 $('gb1').onclick=pick;$('bd').onclick=async()=>{await flush();pick()};
 $('gb2').onclick=async()=>{try{if(await saved.requestPermission({mode:'readwrite'})==='granted'){dir=saved;await init()}}catch(e){}};
