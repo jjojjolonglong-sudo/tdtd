@@ -81,6 +81,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);bo
   <button id="bm" class="tb sw">여백 중간</button>
   <button id="bv" class="tb tg on">기록</button><span class="sep"></span>
   <button id="bu" class="tb">🔓 전체 잠금 해제</button><span class="sep"></span>
+  <button id="bpip" class="tb tg" hidden title="글자수만 따로 작은 창으로 (항상 위에 떠 있음)">글자수 창</button>
   <button id="bin" class="tb" hidden>설치</button>
   <button id="brl" class="tb">새로고침</button>
  </div>
@@ -182,7 +183,7 @@ function showDC(f,ws,wos){const N=v=>v.toLocaleString(),c=f.cur,s=new Date(c.t),
  const el=[row('ph','지금',`${N(ws-c.ws)} (${N(wos-c.wos)})`),...f.days.slice(-10).reverse().map(x=>row('pd',md(x.d),`${N(x.ws)} (${N(x.wos)})`))];
  $('pl').replaceChildren(...el)}
 let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim(),ws=t.length,wos=t.replace(/\s/g,'').length,f=dcOf(ws,wos),b=f.cur,N=v=>v.toLocaleString();
- ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;$('hct').textContent=N(ws-b.ws);$('hca').textContent=N(ws);showDC(f,ws,wos);layout()};now?f():rT=setTimeout(f,200)}
+ ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;$('hct').textContent=N(ws-b.ws);$('hca').textContent=N(ws);pipUpd(ws,wos,b);showDC(f,ws,wos);layout()};now?f():rT=setTimeout(f,200)}
 function keepVisible(){
  const s=getSelection();if(!s.rangeCount)return;let b=s.getRangeAt(0).getBoundingClientRect();
  if(!b.height){const k=blockOf(s.anchorNode);if(!k)return;b=k.getBoundingClientRect()}
@@ -373,6 +374,22 @@ async function init(){
   if(d&&d.name===name&&d.html&&confirm('저장되지 않은 내용이 남아 있습니다. 복구할까요?')){load(d.html);dirty=true;save()}}catch(e){}
 }
 async function pick(){try{dir=await showDirectoryPicker({mode:'readwrite'});await idb('put',dir);await init()}catch(e){}}
+/* 글자수 창: 항상 위에 떠 있는 작은 창(크롬·엣지 PC의 Document Picture-in-Picture). 본창을 닫거나 새로고침하면 같이 닫혀요 */
+var pipW=null,pipLast=null;
+function pipUpd(ws,wos,b){pipLast=[ws,wos,b];if(!pipW)return;const d=pipW.document,N=v=>v.toLocaleString(),set=(i,v)=>{const e=d.getElementById(i);if(e)e.textContent=v};
+ set('t',N(ws-b.ws));set('a',N(ws));set('s',`공미포 ${N(wos-b.wos)} / ${N(wos)}`)}
+if('documentPictureInPicture'in window)$('bpip').hidden=false;
+$('bpip').onclick=async()=>{if(pipW){pipW.close();return}
+ try{pipW=await documentPictureInPicture.requestWindow({width:300,height:120})}catch(e){return say('글자수 창을 열 수 없어요')}
+ const d=pipW.document;d.title='tdtd 글자수';
+ const st=d.createElement('style');st.textContent=`html,body{margin:0;height:100%;background:#fff;color:#111827;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden}
+body{container-type:size;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2cqh}
+.r{display:flex;align-items:flex-end;gap:3.5cqw;white-space:nowrap}.c{display:flex;flex-direction:column;align-items:center}
+.l{font-size:min(4.4cqw,12cqh);color:#9ca3af}.n{font-size:min(9.5cqw,32cqh);font-weight:600;font-variant-numeric:tabular-nums;line-height:1.05}
+.sl{font-size:min(7.5cqw,24cqh);color:#d1d5db;line-height:1.2}.s{font-size:min(4.2cqw,12cqh);color:#9ca3af;white-space:nowrap;font-variant-numeric:tabular-nums}`;
+ d.head.append(st);d.body.innerHTML='<div class="r"><div class="c"><span class="l">오늘</span><span class="n" id="t">0</span></div><span class="sl">/</span><div class="c"><span class="l">전체</span><span class="n" id="a">0</span></div></div><div class="s" id="s"></div>';
+ $('bpip').classList.add('on');pipW.addEventListener('pagehide',()=>{pipW=null;$('bpip').classList.remove('on')});
+ if(pipLast)pipUpd(...pipLast);else refresh(true)};
 /* 앱 설치: 설치된 앱으로 열면 버튼 숨김. 크롬이 허락하면 바로 설치, 아니면 방법 안내 */
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 let dp=null;if(!(matchMedia('(display-mode: standalone)').matches||navigator.standalone))$('bin').hidden=false;
