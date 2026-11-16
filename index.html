@@ -71,7 +71,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);bo
   <button id="be" class="tb exp" title="EPUB 전자책으로 저장 (서식 없이 본문만)">EPUB</button>
   <span id="st">폴더 미지정</span>
  </div>
- <div id="hc" title="공백 미포함 글자수"><span>오늘</span> <b id="hct">0</b> <i>/</i> <span>전체</span> <b id="hca">0</b></div>
+ <div id="hc" title="공백 포함 글자수"><span>오늘</span> <b id="hct">0</b> <i>/</i> <span>전체</span> <b id="hca">0</b></div>
  <div class="g">
   <button id="bf" class="tb sw" title="글씨체">굴림체</button><span class="sep"></span>
   <button id="ba" class="tb sw" title="커서가 있는 문단 정렬">양쪽</button>
@@ -182,7 +182,7 @@ function showDC(f,ws,wos){const N=v=>v.toLocaleString(),c=f.cur,s=new Date(c.t),
  const el=[row('ph','지금',`${N(ws-c.ws)} (${N(wos-c.wos)})`),...f.days.slice(-10).reverse().map(x=>row('pd',md(x.d),`${N(x.ws)} (${N(x.wos)})`))];
  $('pl').replaceChildren(...el)}
 let rT=0;function refresh(now){clearTimeout(rT);const f=()=>{syncMemos();const t=txt(ed).trim(),ws=t.length,wos=t.replace(/\s/g,'').length,f=dcOf(ws,wos),b=f.cur,N=v=>v.toLocaleString();
- ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;$('hct').textContent=N(wos-b.wos);$('hca').textContent=N(wos);showDC(f,ws,wos);layout()};now?f():rT=setTimeout(f,200)}
+ ed.classList.toggle('blank',!t);$('cc').textContent=`오늘 ${N(ws-b.ws)} (${N(wos-b.wos)}) / 전체 ${N(ws)} (${N(wos)})`;$('hct').textContent=N(ws-b.ws);$('hca').textContent=N(ws);showDC(f,ws,wos);layout()};now?f():rT=setTimeout(f,200)}
 function keepVisible(){
  const s=getSelection();if(!s.rangeCount)return;let b=s.getRangeAt(0).getBoundingClientRect();
  if(!b.height){const k=blockOf(s.anchorNode);if(!k)return;b=k.getBoundingClientRect()}
