@@ -251,13 +251,13 @@ ed.addEventListener('input',e=>{
  if(!e.isComposing){ensure();seed()}   // 한글 조합 중에 DOM을 옮기면 조합이 끊겨 첫 글자 자리에서 계속 덮어써져요 → 조합이 끝난 뒤에 감싸요
  input()});
 ed.addEventListener('compositionend',()=>{ensure()});
-/* 따옴표: 직선 " ' → 앞뒤 구분되는 “ ” ‘ ’ (앞 글자가 없거나 공백·여는 괄호면 여는 따옴표) */
+/* 따옴표: 직선 " ' → 앞뒤 구분되는 “ ” ‘ ’ (앞 글자가 없거나 공백·여는 괄호면 여는 따옴표, 같은 여는 따옴표 바로 뒤면 닫는 따옴표) */
 ed.addEventListener('beforeinput',e=>{
  if(e.inputType!=='insertText'||e.isComposing||(e.data!=='"'&&e.data!=="'"))return;
  const s=getSelection();if(!s.rangeCount)return;e.preventDefault();
  const r=s.getRangeAt(0).cloneRange();let pv='';
  try{r.collapse(true);r.setStart(selMemo()||blockOf(s.anchorNode)||ed,0);pv=r.toString().slice(-1)}catch(x){}
- const open=!pv||/[\s(\[{<\u2014\u2013\u00a0“‘]/.test(pv);
+ const dq=e.data==='"',open=!pv||/[\s(\[{<\u2014\u2013\u00a0]/.test(pv)||(pv==='“'&&!dq)||(pv==='‘'&&dq);   // 바로 앞이 같은 종류 여는 따옴표면 닫는 따옴표(“” 한꺼번에 치기), 다른 종류면 여는 따옴표(“‘ 겹치기)
  document.execCommand('insertText',false,e.data==='"'?(open?'“':'”'):(open?'‘':'’'))});
 addEventListener('pagehide',()=>{if(dirty)draft()});
 addEventListener('beforeunload',e=>{if(dirty){draft();e.preventDefault();e.returnValue=''}});
