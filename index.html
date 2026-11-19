@@ -60,7 +60,7 @@ footer{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px;align-items:
 .menu button{display:block;width:100%;text-align:left;padding:6px 12px;background:none;border-radius:4px;color:#374151}
 .menu button:hover{background:#f3f4f6}
 #gate{position:fixed;inset:0;background:#fff;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center}
-@media (max-width:760px),(hover:none) and (pointer:coarse){#ed{font-size:26px}}   /* 휴대폰: 본문 글씨 두 배 */
+@media (max-width:760px),(hover:none) and (pointer:coarse){#ed{font-size:18px}#hc{display:none}}   /* 휴대폰: 본문 18px, 위 글자수 줄은 숨김(아래 줄에 있음) */
 #gate p{max-width:440px;line-height:1.7;font-size:15px;margin:0}
 </style></head><body>
 <div id="gate" class="hide">
@@ -77,6 +77,10 @@ footer{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px;align-items:
   <span class="sep"></span>
   <button id="bs" class="ib" title="저장"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5h8.2l2.8 2.8v8.2h-11z"/><path d="M5 2.5v3.3h5V2.5M4.6 13.5V9.4h6.8v4.1"/></svg></button>
   <button id="be" class="ib txt" title="EPUB 전자책으로 저장 (서식 없이 본문만)"><b>E</b></button>
+  <span class="sep"></span>
+  <button id="bpip" class="ib tg" hidden title="글자수만 따로 작은 창으로 (항상 위에 떠 있음)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="3" width="12.4" height="10" rx="1"/><rect x="8.2" y="8.2" width="4.6" height="3.4" fill="currentColor" stroke="none"/></svg></button>
+  <button id="bin" class="ib" hidden title="앱 설치"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2v8M4.9 7.3 8 10.4l3.1-3.1M2.8 13.6h10.4"/></svg></button>
+  <button id="brl" class="ib" title="새로고침"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.2A5.2 5.2 0 1 1 11.6 4.4"/><path d="M12.3 1.9v3h-3"/></svg></button>
  </div>
  <div id="hc" title="공백 포함 글자수"><span>오늘</span> <b id="hct">0</b> <i>/</i> <span>전체</span> <b id="hca">0</b></div>
  <div class="g">
@@ -88,9 +92,6 @@ footer{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px;align-items:
   <button id="bm" class="tb sw" title="여백">여백 중간</button>
   <button id="bv" class="tb tg on" title="날짜별 글자수 기록">기록</button><span class="sep"></span>
   <button id="bu" class="ib" title="전체 잠금 해제"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7.3" width="10" height="6.7" rx="1"/><path d="M5.5 7.3V5a2.5 2.5 0 0 1 4.9-.7"/></svg></button>
-  <button id="bpip" class="ib tg" hidden title="글자수만 따로 작은 창으로 (항상 위에 떠 있음)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="3" width="12.4" height="10" rx="1"/><rect x="8.2" y="8.2" width="4.6" height="3.4" fill="currentColor" stroke="none"/></svg></button>
-  <button id="bin" class="ib" hidden title="앱 설치"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2v8M4.9 7.3 8 10.4l3.1-3.1M2.8 13.6h10.4"/></svg></button>
-  <button id="brl" class="ib" title="새로고침"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.2A5.2 5.2 0 1 1 11.6 4.4"/><path d="M12.3 1.9v3h-3"/></svg></button>
  </div>
 </header>
 <div id="stale" class="hide"><span id="stt"></span><button id="sre">다시 불러오기</button><button id="sgo">그래도 이걸로 쓰기</button></div>
