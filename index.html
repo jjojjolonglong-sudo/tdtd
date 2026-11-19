@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: 'self'; manifest-src 'self'; worker-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: 'self'; manifest-src 'self'; worker-src 'self'; connect-src https://rtvvajhsnwkkrmncyfbs.supabase.co">
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#ffffff">
 <title>집필기</title>
 <style>
@@ -10,20 +10,28 @@ html,body{height:100%;margin:0;overscroll-behavior:none}
 body{font:13px system-ui,-apple-system,'Segoe UI',sans-serif;color:#111827;background:#fff;display:flex;flex-direction:column;overflow:hidden}
 button,select,input{font:inherit}
 button{border:0;cursor:pointer}
-header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;align-items:center;padding:10px 24px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:12px;user-select:none}
-.g{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.tb{padding:4px 10px;border-radius:4px;font-weight:500;white-space:nowrap;background:#e5e7eb;color:#374151}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;align-items:center;padding:6px 16px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:12px;user-select:none}
+.g{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.tb{height:28px;padding:0 9px;border-radius:4px;font-weight:500;white-space:nowrap;background:#e5e7eb;color:#374151}
 .tb:hover{background:#d1d5db}
 .sw{background:#e0f2fe;color:#075985}.sw:hover{background:#bae6fd}
 .tg{color:#6b7280}.tg.on{background:#d1fae5;color:#065f46}.tg.on:hover{background:#a7f3d0}
 .pri{background:#2563eb;color:#fff}.pri:hover{background:#1d4ed8}
 .exp{background:#059669;color:#fff}.exp:hover{background:#047857}
-.sep{width:1px;height:16px;background:#d1d5db}
-#fs,#ti{border:1px solid #d1d5db;border-radius:4px;padding:4px 8px;background:#fff;font-size:12px}
-#fs{width:130px}#ti{width:120px;font-size:14px;font-weight:500}
-#tt{padding:4px 8px;border:1px solid transparent;border-radius:4px;font-size:14px;font-weight:500;cursor:pointer}
-#tt:hover{border-color:#d1d5db}
-#st{color:#9ca3af;font-size:11px}
+.sep{width:1px;height:16px;background:#d1d5db;margin:0 4px}
+.ib{width:28px;height:28px;padding:0;border-radius:4px;background:none;color:#4b5563;display:inline-flex;align-items:center;justify-content:center}.ib:hover{background:#e5e7eb}
+.ib svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.ib.txt b{font:700 16px Georgia,'Times New Roman',serif;line-height:1}
+.ib.sw{background:#e0f2fe;color:#075985}.ib.sw:hover{background:#bae6fd}
+.ib.tg{color:#9ca3af}.ib.tg.on{background:#d1fae5;color:#065f46}
+.fb{height:28px;max-width:220px;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#111827;font-size:14px;font-weight:500}.fb:hover{border-color:#9ca3af}
+.fb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fb .cv{width:10px;height:10px;flex:none;fill:none;stroke:#6b7280;stroke-width:1.5}
+#fm{max-height:60vh;overflow:auto;min-width:200px}#fm button.cur{font-weight:700;background:#eff6ff}#fm .nw{color:#2563eb;border-top:1px solid #e5e7eb;border-radius:0;margin-top:2px}
+#stale{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 16px;background:#fef3c7;border-bottom:1px solid #fcd34d;color:#78350f;font-size:13px}
+#stale button{height:26px;padding:0 10px;border-radius:4px;background:#fff;border:1px solid #f59e0b;color:#92400e;font-weight:600}#stale #sre{background:#f59e0b;color:#fff}
+#ed[contenteditable=false]{opacity:.55}
+#ti{height:28px;border:1px solid #2563eb;border-radius:4px;padding:0 8px;background:#fff;width:180px;font-size:14px;font-weight:500}
+#st{color:#9ca3af;font-size:11px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #hc{flex:1 1 auto;text-align:center;white-space:nowrap;font-size:15px;color:#6b7280}#hc b{color:#111827;font-weight:600;font-variant-numeric:tabular-nums}#hc i{font-style:normal;color:#d1d5db;margin:0 4px}
 header.nw #hc{order:3;flex-basis:100%}
 .hide{display:none!important}
@@ -47,11 +55,12 @@ header.nw #hc{order:3;flex-basis:100%}
 .pe{display:flex;gap:6px;white-space:nowrap}.pe span:first-child{width:4.6em}
 .ph{color:#374151;font-weight:600;margin-top:4px}
 .pd{color:#9ca3af}
-footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);border-top:1px solid #e5e7eb;padding:8px 24px;color:#6b7280;font-size:12px;text-align:right;user-select:none;z-index:40}
+footer{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px;align-items:center;background:rgba(255,255,255,.9);border-top:1px solid #e5e7eb;padding:8px 24px;color:#6b7280;font-size:12px;text-align:right;user-select:none;z-index:40}
 .menu{display:none;position:absolute;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 8px rgba(0,0,0,.1);padding:4px;z-index:10000;font-size:12px}
 .menu button{display:block;width:100%;text-align:left;padding:6px 12px;background:none;border-radius:4px;color:#374151}
 .menu button:hover{background:#f3f4f6}
 #gate{position:fixed;inset:0;background:#fff;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center}
+@media (max-width:760px),(hover:none) and (pointer:coarse){#ed{font-size:26px}}   /* 휴대폰: 본문 글씨 두 배 */
 #gate p{max-width:440px;line-height:1.7;font-size:15px;margin:0}
 </style></head><body>
 <div id="gate" class="hide">
@@ -60,39 +69,38 @@ footer{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.9);bo
  <button id="gb1" class="tb pri" style="padding:10px 20px">저장 폴더 선택하기</button>
 </div>
 <div id="cm" class="menu"><button id="mlock"></button><button id="mmemo"></button></div>
-<div id="tm" class="menu"><button id="mren">✏️ 이름 수정</button></div>
+<div id="fm" class="menu"></div>
 <header>
  <div class="g">
-  <button id="bd" class="tb">폴더 변경</button>
-  <select id="fs"></select>
-  <span id="tt" title="우클릭 또는 더블클릭하여 이름 수정">untitled</span><input id="ti" class="hide">
-  <button id="bs" class="tb pri">저장</button>
-  <button id="bx" class="tb exp">내보내기</button>
-  <button id="be" class="tb exp" title="EPUB 전자책으로 저장 (서식 없이 본문만)">EPUB</button>
-  <span id="st">폴더 미지정</span>
+  <button id="bd" class="ib" title="폴더 변경"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 4.2h4.3l1.5 1.6h6.6v7.4H1.8z"/></svg></button>
+  <button id="tt" class="fb" title="눌러서 파일 고르기 · 우클릭(휴대폰은 꾹)으로 이름 바꾸기"><span id="ttn">untitled</span><svg viewBox="0 0 10 10" class="cv" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5"/></svg></button><input id="ti" class="hide">
+  <span class="sep"></span>
+  <button id="bs" class="ib" title="저장"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5h8.2l2.8 2.8v8.2h-11z"/><path d="M5 2.5v3.3h5V2.5M4.6 13.5V9.4h6.8v4.1"/></svg></button>
+  <button id="be" class="ib txt" title="EPUB 전자책으로 저장 (서식 없이 본문만)"><b>E</b></button>
  </div>
  <div id="hc" title="공백 포함 글자수"><span>오늘</span> <b id="hct">0</b> <i>/</i> <span>전체</span> <b id="hca">0</b></div>
  <div class="g">
-  <button id="bf" class="tb sw" title="글씨체">굴림체</button><span class="sep"></span>
-  <button id="ba" class="tb sw" title="커서가 있는 문단 정렬">양쪽</button>
-  <button id="bl" class="tb sw">줄간격 1.6</button>
-  <button id="bi" class="tb tg">들여쓰기</button>
-  <button id="bp" class="tb tg">문단간격</button><span class="sep"></span>
-  <button id="bm" class="tb sw">여백 중간</button>
-  <button id="bv" class="tb tg on">기록</button><span class="sep"></span>
-  <button id="bu" class="tb">🔓 전체 잠금 해제</button><span class="sep"></span>
-  <button id="bpip" class="tb tg" hidden title="글자수만 따로 작은 창으로 (항상 위에 떠 있음)">글자수 창</button>
-  <button id="bin" class="tb" hidden>설치</button>
-  <button id="brl" class="tb">새로고침</button>
+  <button id="bf" class="tb sw" title="글씨체">굴림체</button>
+  <button id="ba" class="ib sw" title="커서가 있는 문단 정렬: 양쪽"></button>
+  <button id="bl" class="tb sw" title="줄간격">1.6</button>
+  <button id="bi" class="ib tg" title="들여쓰기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3.5h7.5M2 7h12M2 10.5h12M2 14h8"/><path d="M2 2.2l2.3 1.3L2 4.8" /></svg></button>
+  <button id="bp" class="ib tg" title="문단 간격"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2.5h12M2 5.5h9M2 10.5h12M2 13.5h9"/></svg></button><span class="sep"></span>
+  <button id="bm" class="tb sw" title="여백">여백 중간</button>
+  <button id="bv" class="tb tg on" title="날짜별 글자수 기록">기록</button><span class="sep"></span>
+  <button id="bu" class="ib" title="전체 잠금 해제"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7.3" width="10" height="6.7" rx="1"/><path d="M5.5 7.3V5a2.5 2.5 0 0 1 4.9-.7"/></svg></button>
+  <button id="bpip" class="ib tg" hidden title="글자수만 따로 작은 창으로 (항상 위에 떠 있음)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="3" width="12.4" height="10" rx="1"/><rect x="8.2" y="8.2" width="4.6" height="3.4" fill="currentColor" stroke="none"/></svg></button>
+  <button id="bin" class="ib" hidden title="앱 설치"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2v8M4.9 7.3 8 10.4l3.1-3.1M2.8 13.6h10.4"/></svg></button>
+  <button id="brl" class="ib" title="새로고침"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.2A5.2 5.2 0 1 1 11.6 4.4"/><path d="M12.3 1.9v3h-3"/></svg></button>
  </div>
 </header>
+<div id="stale" class="hide"><span id="stt"></span><button id="sre">다시 불러오기</button><button id="sgo">그래도 이걸로 쓰기</button></div>
 <div id="area">
  <aside id="pomo"><div><button id="pb">초기화</button> <b id="pd" style="margin-left:6px;color:#374151"></b></div><div id="pl"></div></aside>
  <main id="main"><div id="wrap"><div id="ed" contenteditable="true" spellcheck="false"></div></div></main>
 </div>
-<footer id="cc">오늘 0 (0) / 전체 0 (0)</footer>
+<footer><span id="st">폴더 미지정</span><span id="cc">오늘 0 (0) / 전체 0 (0)</span></footer>
 <script>
-const $=i=>document.getElementById(i),ed=$('ed'),main=$('main'),wrap=$('wrap'),st=$('st'),cm=$('cm'),tm=$('tm');
+const $=i=>document.getElementById(i),ed=$('ed'),main=$('main'),wrap=$('wrap'),st=$('st'),cm=$('cm'),tm=$('fm');
 const FONTS=[['굴림체',"Gulim,'굴림',sans-serif"],['돋움체',"Dotum,'돋움',sans-serif"],['바탕체',"Batang,'바탕',serif"]],
  FK=['gulim','dodum','batang'],LK=['tight','normal','loose'],LEAD=[1.3,1.6,2],MARG=['없음','좁음','중간','넓음'],MW=[0,1024,768,576],
  AL=[['justify','양쪽','justifyFull'],['left','왼쪽','justifyLeft'],['center','가운데','justifyCenter'],['right','오른쪽','justifyRight']],
@@ -193,7 +201,7 @@ function keepVisible(){
 /* ---------- UI/설정 ---------- */
 function ui(){
  ed.style.fontFamily=FONTS[S.font][1];ed.style.lineHeight=LEAD[S.lead];ed.classList.toggle('ind',!!S.indent);ed.classList.toggle('gap',!!S.para);
- $('bf').textContent=FONTS[S.font][0];$('bl').textContent='줄간격 '+LEAD[S.lead].toFixed(1);$('bm').textContent='여백 '+MARG[S.margin];
+ $('bf').textContent=FONTS[S.font][0];$('bl').textContent=LEAD[S.lead].toFixed(1);$('bm').textContent='여백 '+MARG[S.margin];
  $('bi').classList.toggle('on',!!S.indent);$('bp').classList.toggle('on',!!S.para);$('bv').classList.toggle('on',pomoOn);
  $('pomo').style.display=pomoOn?'flex':'none';layout();syncMemos()}
 async function persist(){
@@ -208,20 +216,53 @@ $('bf').onclick=cyc('font',3);$('bl').onclick=cyc('lead',3);$('bm').onclick=cyc(
 $('bi').onclick=()=>{S.indent^=1;ui();persist()};$('bp').onclick=()=>{S.para^=1;ui();persist()};
 $('bv').onclick=()=>{pomoOn=!pomoOn;ui()};
 /* 정렬: 커서 문단에 적용, 라벨은 현재 문단 기준 */
+const ALI=['M2 3.5h12M2 6.5h12M2 9.5h12M2 12.5h12','M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8','M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8','M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8'];
+const setAl=i=>{alignI=i;$('ba').innerHTML=`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${ALI[i]}"/></svg>`;$('ba').title='커서가 있는 문단 정렬: '+AL[i][1]};setAl(0);
 $('ba').onmousedown=e=>e.preventDefault();
 $('ba').onclick=()=>{const s=getSelection();if(!s.rangeCount||!ed.contains(s.anchorNode))ed.focus();
- alignI=(alignI+1)%4;document.execCommand(AL[alignI][2]);$('ba').textContent=AL[alignI][1];ed.focus();input()};
+ setAl((alignI+1)%4);document.execCommand(AL[alignI][2]);ed.focus();input()};
 let aT=0;document.addEventListener('selectionchange',()=>{if(aT)return;aT=requestAnimationFrame(()=>{aT=0;const s=getSelection();
  if(!s.rangeCount||!ed.contains(s.anchorNode))return;let a=getComputedStyle(blockOf(s.anchorNode)||ed).textAlign;if(a==='start')a='left';
- const i=AL.findIndex(x=>x[0]===a);if(i>=0){alignI=i;$('ba').textContent=AL[i][1]}})});
+ const i=AL.findIndex(x=>x[0]===a);if(i>=0&&i!==alignI)setAl(i)})});
 
+
+/* ---------- 최신본 확인 (2026-11-20) ----------
+   원고는 폴더(구글 드라이브)에, '마지막으로 저장한 판'의 지문(내용 해시)·시각·기기만 Supabase tdtd_stamp에.
+   연 파일의 지문이 기록과 다르면 = 다른 기기에서 저장한 판이 아직 이 기기에 안 옴 → 편집을 막고 알려 줘요.
+   저장 직전·창으로 돌아올 때도 확인. 로그인은 다른 앱과 같은 localStorage 'jjojjo_ses'(같은 주소라 공유). 확인이 안 되면(오프라인 등) 막지 않아요. */
+const SB='https://rtvvajhsnwkkrmncyfbs.supabase.co',ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0dnZhamhzbndra3JtbmN5ZmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NjkwMTEsImV4cCI6MjEwNzA0NTAxMX0.O2aLLeazv_FhUhbVAkp4vz3pw8GPb_683dUu7Et1Cwk',SKEY='jjojjo_ses',DEV=/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)?'휴대폰':'PC';
+let lastHash=null,isStale=false,known=0,chkAt=0;   // known: 내가 알고 있는 마지막 저장 시각(ms)
+const sesGet=()=>{try{const s=JSON.parse(localStorage.getItem(SKEY)||'null');return s&&s.refresh_token?s:null}catch(e){return null}};
+async function gotrue(g,b){const r=await fetch(SB+'/auth/v1/token?grant_type='+g,{method:'POST',headers:{apikey:ANON,'Content-Type':'application/json'},body:JSON.stringify(b)});const j=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(j.error_description||j.msg||'로그인 실패');const s={access_token:j.access_token,refresh_token:j.refresh_token,expires_at:Date.now()+(j.expires_in||3600)*1000,user:{id:j.user&&j.user.id,email:j.user&&j.user.email}};localStorage.setItem(SKEY,JSON.stringify(s));return s}
+let rfP=null;async function tok(){let s=sesGet();if(!s)return null;if(s.expires_at-Date.now()<60000){rfP=rfP||gotrue('refresh_token',{refresh_token:s.refresh_token}).finally(()=>rfP=null);s=await rfP}return s.access_token}
+async function rest(path,o={}){const t=await tok();if(!t)throw new Error('nologin');const r=await fetch(SB+'/rest/v1/'+path,{...o,headers:{apikey:ANON,Authorization:'Bearer '+t,'Content-Type':'application/json',...(o.headers||{})}});
+ if(!r.ok)throw new Error('HTTP '+r.status);return r.status===204?null:r.json().catch(()=>null)}
+async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function stampGet(f){try{const a=await rest('tdtd_stamp?select=hash,saved_at,device,chars&file=eq.'+encodeURIComponent(f));return{ok:true,v:a&&a[0]||null}}catch(e){return{ok:false,nologin:e.message==='nologin'}}}
+async function stampPut(f,h,chars){const at=new Date();try{await rest('tdtd_stamp?on_conflict=user_id,file',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({file:f,hash:h,saved_at:at.toISOString(),device:DEV,chars})});known=+at}catch(e){}}
+async function stampMove(o,n){try{await rest('tdtd_stamp?file=eq.'+encodeURIComponent(o),{method:'DELETE'})}catch(e){}}
+const when=t=>{const d=new Date(t),p=x=>String(x).padStart(2,'0');return`${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`};
+function stale(v,msg){isStale=true;ed.setAttribute('contenteditable','false');
+ $('stt').textContent=msg||`⚠ 최신본이 아니에요 — ${v.device||'다른 기기'}에서 ${when(v.saved_at)}에 저장한 판이 아직 이 기기에 안 왔어요. 드라이브 동기화를 기다린 뒤 다시 불러오세요.`;$('stale').classList.remove('hide')}
+function unstale(){isStale=false;ed.setAttribute('contenteditable','true');$('stale').classList.add('hide')}
+async function checkOpen(raw){unstale();lastHash=await sha(raw);const r=await stampGet(name);
+ if(!r.ok){if(r.nologin)say('최신본 확인 꺼짐 — 다른 앱에서 로그인하면 켜져요');return true}
+ if(r.v&&r.v.hash!==lastHash){stale(r.v);return false}known=r.v?Date.parse(r.v.saved_at):0;return true}
+async function checkRemote(force){if(!dir||isStale)return true;if(!force&&Date.now()-chkAt<8000)return true;chkAt=Date.now();const r=await stampGet(name);if(!r.ok||!r.v||!lastHash)return true;
+ if(r.v.hash!==lastHash&&Date.parse(r.v.saved_at)>known+1000){stale(r.v,`⚠ ${r.v.device||'다른 기기'}에서 ${when(r.v.saved_at)}에 이 원고를 저장했어요. 이 화면은 그 전 판이라 저장을 멈췄어요. 다시 불러오세요.`);return false}return true}
+$('sre').onclick=async()=>{const t=await get(name+'.md');if(t===null)return say('파일 읽기 실패');load(takeTag(t));dirty=false;try{localStorage.removeItem('tdtd_draft')}catch(e){}
+ if(await checkOpen(t))say('최신본을 불러왔어요');else say('아직 최신본이 안 왔어요 — 조금 뒤 다시')};
+$('sgo').onclick=()=>{if(!confirm('이 판으로 계속 쓰면 다른 기기에서 저장한 내용이 덮어써질 수 있어요. 그래도 이걸로 쓸까요?'))return;unstale();lastHash=null;say('이 판으로 쓰기')};
+addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkRemote(true)});
 /* ---------- 저장 ---------- */
 function draft(){try{localStorage.setItem('tdtd_draft',JSON.stringify({name,html:ed.innerHTML}))}catch(e){}}
 async function save(){
  if(!dir){draft();return}
+ if(isStale){draft();return}
  if(saving){again=true;return}
  saving=true;clearTimeout(saveT);
- try{const html=ed.innerHTML;const ft=await headTag(name+'.md');if(ft)wkTag=ft;else if(!wkTag&&!(await has(name+'.md')))wkTag=newTag();await put(name+'.md',(wkTag?wkTag+'\n':'')+html);lastSave=Date.now();if(html===ed.innerHTML){dirty=false;localStorage.removeItem('tdtd_draft')}
+ try{if(!(await checkRemote())){draft();return}const html=ed.innerHTML;const ft=await headTag(name+'.md');if(ft)wkTag=ft;else if(!wkTag&&!(await has(name+'.md')))wkTag=newTag();const full=(wkTag?wkTag+'\n':'')+html;await put(name+'.md',full);lastSave=Date.now();lastHash=await sha(full);await stampPut(name,lastHash,txt(ed).trim().length);if(html===ed.innerHTML){dirty=false;localStorage.removeItem('tdtd_draft')}
   localStorage.setItem('tdtd_last_file',name+'.md');say('저장됨')}
  catch(e){say('저장 실패 — 재시도 중');draft();saveT=setTimeout(save,5000)}
  finally{saving=false;if(again){again=false;save()}}}
@@ -262,24 +303,32 @@ ed.addEventListener('beforeinput',e=>{
 addEventListener('pagehide',()=>{if(dirty)draft()});
 addEventListener('beforeunload',e=>{if(dirty){draft();e.preventDefault();e.returnValue=''}});
 $('bs').onclick=async()=>{if(!dir)return say('먼저 저장 폴더를 지정해주세요');dirty=true;await save();await list()};
-async function list(){
- const f=$('fs');f.innerHTML='<option value="">파일 목록</option><option value="+">＋ 새 파일</option>';
- if(!dir)return;const a=[];for await(const e of dir.values())if(e.kind==='file'&&e.name.endsWith('.md'))a.push(e.name);
- a.sort((x,y)=>x.localeCompare(y,'ko')).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n.slice(0,-3);f.appendChild(o)});f.value=''}
-function setName(n){name=n;$('tt').textContent=n;$('ti').value=n}
-$('fs').onchange=async e=>{const v=e.target.value;e.target.value='';if(!v||!dir)return;await flush();
- if(v==='+'){const have=new Set([...$('fs').options].map(o=>o.value));let n='untitled',i=2;while(have.has(n+'.md'))n='untitled-'+i++;
-  setName(n);wkTag=newTag();ed.replaceChildren();seed();refresh(true);dirty=true;await save();return list()}
+let FILES=[];
+async function list(){FILES=[];if(!dir)return;for await(const e of dir.values())if(e.kind==='file'&&e.name.endsWith('.md'))FILES.push(e.name);FILES.sort((x,y)=>x.localeCompare(y,'ko'))}
+/* 파일 고르기: 파일 이름 버튼을 누르면 목록, 우클릭(휴대폰은 꾹 누르기)은 이름 바꾸기 */
+function fileMenu(){if(tm.style.display==='block'){tm.style.display='none';return}
+ tm.replaceChildren(...FILES.map(n=>{const b=document.createElement('button');b.textContent=n.slice(0,-3);b.dataset.f=n;if(n===name+'.md')b.className='cur';return b}));
+ const nw=document.createElement('button');nw.textContent='＋ 새 파일';nw.dataset.f='+';nw.className='nw';tm.append(nw);
+ const r=$('tt').getBoundingClientRect();tm.style.left=r.left+'px';tm.style.top=(r.bottom+4)+'px';tm.style.display='block'}
+function setName(n){name=n;$('ttn').textContent=n;$('ti').value=n}
+tm.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(b){e.stopPropagation();tm.style.display='none';openFile(b.dataset.f)}});
+async function openFile(v){if(!v||!dir)return;await flush();
+ if(v==='+'){const have=new Set(FILES);let n='untitled',i=2;while(have.has(n+'.md'))n='untitled-'+i++;
+  setName(n);wkTag=newTag();ed.replaceChildren();seed();refresh(true);unstale();lastHash=null;dirty=true;await save();return list()}
  const t=await get(v);if(t===null){return say('파일 읽기 실패')}setName(v.slice(0,-3));load(takeTag(t));try{localStorage.setItem('tdtd_last_file',v)}catch(x){}
- dirty=false;ed.focus()};
+ dirty=false;ed.focus();checkOpen(t)}
 /* 파일명 변경: 새 이름으로 저장 후 이전 파일 삭제 (같은 이름이 있으면 중단) */
-function editTitle(){tm.style.display='none';$('tt').classList.add('hide');$('ti').classList.remove('hide');$('ti').focus();$('ti').select()}
+function editTitle(){tm.style.display='none';$('tt').classList.add('hide');clearTimeout(lpT);$('ti').classList.remove('hide');$('ti').focus();$('ti').select()}
 async function commitTitle(){const ti=$('ti');if(ti.classList.contains('hide'))return;ti.classList.add('hide');$('tt').classList.remove('hide');
  const n=safe(ti.value);ti.value=name;if(n===name)return;
  if(dir){if(await get(n+'.md')!==null)return say('이미 같은 이름의 파일이 있습니다');
-  const old=name;await flush();setName(n);dirty=true;await save();try{await dir.removeEntry(old+'.md')}catch(e){}await renameLogs(old,n);await list()}else{const old=name;setName(n);await renameLogs(old,n)}}
-$('tt').oncontextmenu=e=>{e.preventDefault();tm.style.display='block';tm.style.left=e.pageX+'px';tm.style.top=e.pageY+'px'};
-$('tt').ondblclick=editTitle;$('mren').onclick=editTitle;$('ti').onblur=commitTitle;
+  const old=name;await flush();setName(n);dirty=true;await save();try{await dir.removeEntry(old+'.md')}catch(e){}await renameLogs(old,n);stampMove(old,n);await list()}else{const old=name;setName(n);await renameLogs(old,n)}}
+let lpT=0,lpDone=false;
+$('tt').onclick=e=>{e.stopPropagation();if(lpDone){lpDone=false;return}fileMenu()};
+$('tt').oncontextmenu=e=>{e.preventDefault();e.stopPropagation();editTitle()};
+$('tt').addEventListener('touchstart',()=>{lpDone=false;clearTimeout(lpT);lpT=setTimeout(()=>{lpDone=true;editTitle()},550)},{passive:true});
+['touchend','touchmove','touchcancel'].forEach(k=>$('tt').addEventListener(k,()=>clearTimeout(lpT),{passive:true}));
+$('ti').onblur=commitTitle;
 $('ti').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commitTitle()}else if(e.key==='Escape'){$('ti').value=name;commitTitle()}};
 /* EPUB 내보내기: 서식 없는 본문만(한 줄 = 한 문단, 메모 제외), 파일명·책 제목 = 파일 이름. 압축 없이 묶는 작은 zip 만들기(바깥 라이브러리 없이) */
 const CRCT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
@@ -304,9 +353,6 @@ function epubBlob(title,text){const id='urn:uuid:'+(crypto.randomUUID?crypto.ran
 $('be').onclick=async()=>{const f=name+'.epub',b=epubBlob(name,plain(ed));
  if(dir)try{const h=await dir.getFileHandle(f,{create:true}),w=await h.createWritable();await w.write(b);await w.close();return say('EPUB 저장: '+f)}catch(e){}
  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=f;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-$('bx').onclick=async()=>{const f=name+'.txt',t=plain(ed);
- if(dir)try{await put(f,t);return say('내보냄: '+f)}catch(e){}
- const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/plain;charset=utf-8'}));a.download=f;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 
 /* ---------- 입력/복사/붙여넣기 ---------- */
 ed.addEventListener('keydown',e=>{
@@ -369,9 +415,9 @@ async function init(){
  const s=await get('settings.json');if(s)try{applySettings(JSON.parse(s))}catch(e){}ui();
  await dcLoad();
  const last=localStorage.getItem('tdtd_last_file'),t=last&&await get(last);
- if(t!==null&&t!==undefined&&last){setName(last.slice(0,-3));load(takeTag(t))}
+ if(t!==null&&t!==undefined&&last){setName(last.slice(0,-3));load(takeTag(t));await checkOpen(t)}
  try{const d=JSON.parse(localStorage.getItem('tdtd_draft')||'null');   // 저장되지 못한 내용 복구
-  if(d&&d.name===name&&d.html&&confirm('저장되지 않은 내용이 남아 있습니다. 복구할까요?')){load(d.html);dirty=true;save()}}catch(e){}
+  if(d&&d.name===name&&d.html&&!isStale&&confirm('저장되지 않은 내용이 남아 있습니다. 복구할까요?')){load(d.html);dirty=true;save()}}catch(e){}
 }
 async function pick(){try{dir=await showDirectoryPicker({mode:'readwrite'});await idb('put',dir);await init()}catch(e){}}
 /* 글자수 창: 항상 위에 떠 있는 작은 창(크롬·엣지 PC의 Document Picture-in-Picture). 본창을 닫거나 새로고침하면 같이 닫혀요 */
