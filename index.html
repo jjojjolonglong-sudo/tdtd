@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: 'self'; manifest-src 'self'; worker-src 'self'; connect-src https://rtvvajhsnwkkrmncyfbs.supabase.co">
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#ffffff">
 <title>집필기</title>
@@ -10,7 +10,7 @@ html,body{height:100%;margin:0;overscroll-behavior:none}
 body{font:13px system-ui,-apple-system,'Segoe UI',sans-serif;color:#111827;background:#fff;display:flex;flex-direction:column;overflow:hidden}
 button,select,input{font:inherit}
 button{border:0;cursor:pointer}
-header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;align-items:center;padding:6px 16px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:12px;user-select:none}
+header{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;align-items:center;padding:6px 16px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:12px;user-select:none}
 .g{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .tb{height:28px;padding:0 9px;border-radius:4px;font-weight:500;white-space:nowrap;background:#e5e7eb;color:#374151}
 .tb:hover{background:#d1d5db}
@@ -29,7 +29,7 @@ header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;al
 #fm{max-height:60vh;overflow:auto;min-width:200px}#fm button.cur{font-weight:700;background:#eff6ff}#fm .nw{color:#2563eb;border-top:1px solid #e5e7eb;border-radius:0;margin-top:2px}
 #stale{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 16px;background:#fef3c7;border-bottom:1px solid #fcd34d;color:#78350f;font-size:13px}
 #stale button{height:26px;padding:0 10px;border-radius:4px;background:#fff;border:1px solid #f59e0b;color:#92400e;font-weight:600}#stale #sre{background:#f59e0b;color:#fff}
-#ed[contenteditable=false]{opacity:.55}
+#ed.stale{opacity:.55}
 #ti{height:28px;border:1px solid #2563eb;border-radius:4px;padding:0 8px;background:#fff;width:180px;font-size:14px;font-weight:500}
 #st{color:#9ca3af;font-size:11px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #hc{flex:1 1 auto;text-align:center;white-space:nowrap;font-size:15px;color:#6b7280}#hc b{color:#111827;font-weight:600;font-variant-numeric:tabular-nums}#hc i{font-style:normal;color:#d1d5db;margin:0 4px}
@@ -60,7 +60,7 @@ footer{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px;align-items:
 .menu button{display:block;width:100%;text-align:left;padding:6px 12px;background:none;border-radius:4px;color:#374151}
 .menu button:hover{background:#f3f4f6}
 #gate{position:fixed;inset:0;background:#fff;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center}
-@media (max-width:760px),(hover:none) and (pointer:coarse){#ed{font-size:18px}#hc{display:none}}   /* 휴대폰: 본문 18px, 위 글자수 줄은 숨김(아래 줄에 있음) */
+@media (max-width:760px),(hover:none) and (pointer:coarse){#ed{font-size:18px}#hc{display:none}header{padding:6px 10px}.g{gap:3px}.tb{padding:0 6px}.sep{margin:0 2px}}   /* 휴대폰: 본문 18px, 위 글자수 줄은 숨김(아래 줄에 있음) */
 #gate p{max-width:440px;line-height:1.7;font-size:15px;margin:0}
 </style></head><body>
 <div id="gate" class="hide">
@@ -84,6 +84,7 @@ footer{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px;align-items:
  </div>
  <div id="hc" title="공백 포함 글자수"><span>오늘</span> <b id="hct">0</b> <i>/</i> <span>전체</span> <b id="hca">0</b></div>
  <div class="g">
+  <button id="bz" class="tb sw" title="글씨 크기 (누를 때마다 2씩 커지고, 가장 크면 가장 작게)">13</button>
   <button id="bf" class="tb sw" title="글씨체">굴림체</button>
   <button id="ba" class="ib sw" title="커서가 있는 문단 정렬: 양쪽"></button>
   <button id="bl" class="tb sw" title="줄간격">1.6</button>
@@ -107,7 +108,7 @@ const FONTS=[['굴림체',"Gulim,'굴림',sans-serif"],['돋움체',"Dotum,'돋�
  AL=[['justify','양쪽','justifyFull'],['left','왼쪽','justifyLeft'],['center','가운데','justifyCenter'],['right','오른쪽','justifyRight']],
  BLK=['DIV','P','H1','H2','H3','H4','H5','H6','LI','UL','OL','BLOCKQUOTE','PRE'];
 let S={font:0,lead:1,indent:0,para:0,margin:2},dir=null,saved=null,name='untitled',dirty=false,saving=false,again=false,saveT=0,lastSave=Date.now(),
- pomoOn=true,editing=null,alignI=0,cur=[],statT=0;
+ pomoOn=!matchMedia('(max-width:760px),(hover:none) and (pointer:coarse)').matches,editing=null,alignI=0,cur=[],statT=0;
 
 /* ---------- 공통 ---------- */
 const say=m=>{st.textContent=m;clearTimeout(statT);statT=setTimeout(()=>st.textContent=dir?'자동저장 켜짐':'폴더 미지정',2500)};
@@ -200,18 +201,25 @@ function keepVisible(){
  if(b.bottom>c.bottom-150)main.scrollTop+=b.bottom-(c.bottom-150);else if(b.top<c.top+20)main.scrollTop-=c.top+20-b.top}
 
 /* ---------- UI/설정 ---------- */
+/* 휴대폰: 기본 여백 없음·기록 끔·읽기 모드(두 번 두드리면 편집) / 글씨 크기는 기기마다 따로(가운데 = 지금 크기, 2씩) */
+const MOB=matchMedia('(max-width:760px),(hover:none) and (pointer:coarse)').matches,ZB=MOB?18:13,ZO=[-4,-2,0,2,4];
+let zI=2,pcMargin=2,reading=MOB;try{const z=localStorage.getItem('tdtd_size');if(z!==null&&+z>=0&&+z<5)zI=+z}catch(e){}
+if(MOB)S.margin=0;
+function setEditable(){ed.setAttribute('contenteditable',!isStale&&!reading?'true':'false');ed.classList.toggle('stale',isStale)}
+$('bz').onclick=()=>{zI=(zI+1)%5;try{localStorage.setItem('tdtd_size',zI)}catch(e){}ui()};
 function ui(){
+ ed.style.fontSize=(ZB+ZO[zI])+'px';$('bz').textContent=ZB+ZO[zI];
  ed.style.fontFamily=FONTS[S.font][1];ed.style.lineHeight=LEAD[S.lead];ed.classList.toggle('ind',!!S.indent);ed.classList.toggle('gap',!!S.para);
  $('bf').textContent=FONTS[S.font][0];$('bl').textContent=LEAD[S.lead].toFixed(1);$('bm').textContent='여백 '+MARG[S.margin];
  $('bi').classList.toggle('on',!!S.indent);$('bp').classList.toggle('on',!!S.para);$('bv').classList.toggle('on',pomoOn);
  $('pomo').style.display=pomoOn?'flex':'none';layout();syncMemos()}
 async function persist(){
- const o={font:FK[S.font],indent:!!S.indent,leading:LK[S.lead],para:!!S.para,margin:S.margin};
+ const o={font:FK[S.font],indent:!!S.indent,leading:LK[S.lead],para:!!S.para,margin:MOB?pcMargin:S.margin};   // 휴대폰의 여백은 PC 설정에 안 씀
  try{localStorage.setItem('tdtd_app_settings',JSON.stringify(o))}catch(e){}
  if(dir)try{await put('settings.json',JSON.stringify(o))}catch(e){}}
 function applySettings(o){if(!o)return;
  S.font=Math.max(0,FK.indexOf(o.font));S.lead=LK.indexOf(o.leading)<0?1:LK.indexOf(o.leading);S.indent=o.indent?1:0;S.para=o.para?1:0;
- S.margin=Number.isInteger(o.margin)&&o.margin>=0&&o.margin<4?o.margin:2}
+ S.margin=Number.isInteger(o.margin)&&o.margin>=0&&o.margin<4?o.margin:2;pcMargin=S.margin;if(MOB)S.margin=0}
 const cyc=(k,n)=>()=>{S[k]=(S[k]+1)%n;ui();persist()};
 $('bf').onclick=cyc('font',3);$('bl').onclick=cyc('lead',3);$('bm').onclick=cyc('margin',4);
 $('bi').onclick=()=>{S.indent^=1;ui();persist()};$('bp').onclick=()=>{S.para^=1;ui();persist()};
@@ -244,9 +252,9 @@ async function stampGet(f){try{const a=await rest('tdtd_stamp?select=hash,saved_
 async function stampPut(f,h,chars){const at=new Date();try{await rest('tdtd_stamp?on_conflict=user_id,file',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({file:f,hash:h,saved_at:at.toISOString(),device:DEV,chars})});known=+at}catch(e){}}
 async function stampMove(o,n){try{await rest('tdtd_stamp?file=eq.'+encodeURIComponent(o),{method:'DELETE'})}catch(e){}}
 const when=t=>{const d=new Date(t),p=x=>String(x).padStart(2,'0');return`${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`};
-function stale(v,msg){isStale=true;ed.setAttribute('contenteditable','false');
+function stale(v,msg){isStale=true;setEditable();
  $('stt').textContent=msg||`⚠ 최신본이 아니에요 — ${v.device||'다른 기기'}에서 ${when(v.saved_at)}에 저장한 판이 아직 이 기기에 안 왔어요. 드라이브 동기화를 기다린 뒤 다시 불러오세요.`;$('stale').classList.remove('hide')}
-function unstale(){isStale=false;ed.setAttribute('contenteditable','true');$('stale').classList.add('hide')}
+function unstale(){isStale=false;setEditable();$('stale').classList.add('hide')}
 async function checkOpen(raw){unstale();lastHash=await sha(raw);const r=await stampGet(name);
  if(!r.ok){if(r.nologin)say('최신본 확인 꺼짐 — 다른 앱에서 로그인하면 켜져요');return true}
  if(r.v&&r.v.hash!==lastHash){stale(r.v);return false}known=r.v?Date.parse(r.v.saved_at):0;return true}
@@ -409,6 +417,18 @@ $('bu').onclick=()=>{const a=[...ed.querySelectorAll('.lk')];if(!a.length)return
 
 async function renameLogs(o,n){ // 파일명을 바꾸면 글자수 기록도 새 이름으로 옮김
  if(DC[o]){DC[n]=DC[o];delete DC[o];dcSave()}}
+
+/* 읽기 모드(휴대폰): 두 번 두드리면 편집 시작 — 두드린 자리에 커서 */
+function startEdit(x,y){if(!reading)return;reading=false;setEditable();
+ ed.focus({preventScroll:true});const r=document.caretRangeFromPoint&&document.caretRangeFromPoint(x,y);
+ if(r&&ed.contains(r.startContainer)){const s=getSelection();s.removeAllRanges();s.addRange(r)}}
+let tapT=0,tapX=0,tapY=0;
+ed.addEventListener('touchend',e=>{if(!reading||e.changedTouches.length!==1)return;const t=e.changedTouches[0],n=Date.now();
+ if(n-tapT<350&&Math.abs(t.clientX-tapX)<30&&Math.abs(t.clientY-tapY)<30){e.preventDefault();tapT=0;startEdit(t.clientX,t.clientY)}else{tapT=n;tapX=t.clientX;tapY=t.clientY}});
+ed.addEventListener('dblclick',e=>{if(reading)startEdit(e.clientX,e.clientY)});
+setEditable();
+/* 자판이 올라와도 위 메뉴가 화면 밖으로 밀려 나가지 않게 */
+if(window.visualViewport){const vv=visualViewport,fix=()=>{document.body.style.height=vv.height+'px';if(scrollY)scrollTo(0,0)};vv.addEventListener('resize',fix);vv.addEventListener('scroll',fix);addEventListener('scroll',()=>{if(scrollY)scrollTo(0,0)})}
 
 /* ---------- 시작 ---------- */
 async function init(){
