@@ -78,6 +78,7 @@ footer{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px;align-items:
   <button id="bs" class="ib" title="저장"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5h8.2l2.8 2.8v8.2h-11z"/><path d="M5 2.5v3.3h5V2.5M4.6 13.5V9.4h6.8v4.1"/></svg></button>
   <button id="be" class="ib txt" title="EPUB 전자책으로 저장 (서식 없이 본문만)"><b>E</b></button>
   <span class="sep"></span>
+  <button id="brd" class="ib tg" title="편집 모드 켜기/끄기 (끄면 읽기 모드 — 자판이 안 떠요)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.6 2.4l3 3L5.5 13.5H2.5v-3z"/><path d="M9 4l3 3"/></svg></button>
   <button id="bpip" class="ib tg" hidden title="글자수만 따로 작은 창으로 (항상 위에 떠 있음)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="3" width="12.4" height="10" rx="1"/><rect x="8.2" y="8.2" width="4.6" height="3.4" fill="currentColor" stroke="none"/></svg></button>
   <button id="bin" class="ib" hidden title="앱 설치"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2v8M4.9 7.3 8 10.4l3.1-3.1M2.8 13.6h10.4"/></svg></button>
   <button id="brl" class="ib" title="새로고침"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.2A5.2 5.2 0 1 1 11.6 4.4"/><path d="M12.3 1.9v3h-3"/></svg></button>
@@ -205,7 +206,9 @@ function keepVisible(){
 const MOB=matchMedia('(max-width:760px),(hover:none) and (pointer:coarse)').matches,ZB=MOB?18:13,ZO=[-4,-2,0,2,4];
 let zI=2,pcMargin=2,reading=MOB;try{const z=localStorage.getItem('tdtd_size');if(z!==null&&+z>=0&&+z<5)zI=+z}catch(e){}
 if(MOB)S.margin=0;
-function setEditable(){ed.setAttribute('contenteditable',!isStale&&!reading?'true':'false');ed.classList.toggle('stale',isStale)}
+function setEditable(){ed.setAttribute('contenteditable',!isStale&&!reading?'true':'false');ed.classList.toggle('stale',isStale);$('brd').classList.toggle('on',!reading)}
+/* 편집/읽기 바꾸기 버튼: 읽기로 바꾸면 저장하고 자판을 내려요 */
+$('brd').onclick=()=>{if(reading){reading=false;setEditable();ed.focus()}else{reading=true;setEditable();ed.blur();getSelection().removeAllRanges();if(dirty)save()}};
 $('bz').onclick=()=>{zI=(zI+1)%5;try{localStorage.setItem('tdtd_size',zI)}catch(e){}ui()};
 function ui(){
  ed.style.fontSize=(ZB+ZO[zI])+'px';$('bz').textContent=ZB+ZO[zI];
